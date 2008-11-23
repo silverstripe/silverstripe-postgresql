@@ -347,7 +347,7 @@ class PostgreSQLDatabase extends Database {
 			AND NOT b.attisdropped AND b.attnum>0")->column();
 		
 		$output = array();
-		foreach($fields as $field) {
+		if($fields) foreach($fields as $field) {
 			$output[$field] = true;
 		}
 		
