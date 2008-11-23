@@ -109,7 +109,9 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 		
+		/*
 		echo 'sql: ' . $sql . '<br>';
+		*/
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -232,13 +234,17 @@ class PostgreSQLDatabase extends Database {
 	public function alterTable($tableName, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null) {
 		$fieldSchemas = $indexSchemas = "";
 		
+		$alterList = array();
 		if($newFields) foreach($newFields as $k => $v) $alterList[] .= "ADD \"$k\" $v";
-		if($newIndexes) foreach($newIndexes as $k => $v) $alterList[] .= "ADD " . $this->getIndexSqlDefinition($tableName, $k, $v);
+		//if($newIndexes) foreach($newIndexes as $k => $v) $alterList[] .= "ADD " . $this->getIndexSqlDefinition($tableName, $k, $v);
 		if($alteredFields) foreach($alteredFields as $k => $v) $alterList[] .= "CHANGE \"$k\" \"$k\" $v";
 		
+		/*
 		echo 'alterations:<pre>';
 		print_r($newFields);
 		echo '</pre>';
+		*/
+		
 		//DB ABSTRACTION: we need to change the constraints to be a separate 'add' command,
 		//see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
 		
@@ -246,9 +252,11 @@ class PostgreSQLDatabase extends Database {
 			$alterList[] .= "DROP INDEX \"$k\"";
 			$alterList[] .= "ADD ". $this->getIndexSqlDefinition($tableName, $k, $v);
  		}
-		
-		$alterations = implode(",\n", $alterList);
-		$this->query("ALTER TABLE \"$tableName\" " . $alterations);
+
+		if($alterList) {
+			$alterations = implode(",\n", $alterList);
+			$this->query("ALTER TABLE \"$tableName\" " . $alterations);
+		}
 	}
 
 	public function renameTable($oldTableName, $newTableName) {
@@ -313,33 +321,37 @@ class PostgreSQLDatabase extends Database {
 		echo "<li>Fixing " . sizeof($changes) . " page's contnet";
 		foreach($changes as $id => $text) {
 			$SQL_text = Convert::raw2sql($text);
-			$this->query("UPDATE \"$tableName\" SET \"$fieldName\" = '$SQL_text' WHERE ID = '$id'");
+			$this->query("UPDATE \"$tableName\" SET \"$fieldName\" = '$SQL_text' WHERE \"ID\" = '$id'");
 		}
 		*/
 	}
+
+	/**
+	 * Change the database column name of the given field.
+	 * 
+	 * @param string $tableName The name of the tbale the field is in.
+	 * @param string $oldName The name of the field to change.
+	 * @param string $newName The new name of the field
+	 */
+	public function renameField($tableName, $oldName, $newName) {
+		$fieldList = $this->fieldList($tableName);
+		if(array_key_exists($oldName, $fieldList)) {
+			$this->query("ALTER TABLE \"$tableName\" CHANGE \"$oldName\" \"$newName\" " . $fieldList[$oldName]);
+		}
+	}
 	
 	public function fieldList($table) {
-		/*$fields = DB::query("SHOW FULL FIELDS IN \"$table\"");
+		$fields = $this->query("SELECT b.attname FROM pg_class a 
+			INNER JOIN pg_attribute b ON a.relfilenode=b.attrelid 
+			WHERE a.relname='$table' 
+			AND NOT b.attisdropped AND b.attnum>0")->column();
+		
+		$output = array();
 		foreach($fields as $field) {
-			$fieldSpec = $field['Type'];
-			if(!$field['Null'] || $field['Null'] == 'NO') {
-				$fieldSpec .= ' not null';
-			}
-			
-			if($field['Collation'] && $field['Collation'] != 'NULL') {
-				$collInfo = DB::query("SHOW COLLATION LIKE '$field[Collation]'")->record();
-				$fieldSpec .= " character set $collInfo[Charset] collate $field[Collation]";
-			}
-			
-			if($field['Default'] || $field['Default'] === "0") {
-				$fieldSpec .= " default '" . addslashes($field['Default']) . "'";
-			}
-			if($field['Extra']) $fieldSpec .= " $field[Extra]";
-			
-			$fieldList[$field['Field']] = $fieldSpec;
+			$output[$field] = true;
 		}
-		return $fieldList;*/
-		return array();
+		
+		return $output;
 	}
 	
 	/**
@@ -484,8 +496,9 @@ WHERE c.relkind IN ('i','')
 		//echo 'index list: <pre>';
 		//print_r($indexList);
 		//echo '</pre>';
+		/*
 		echo "<p style='color:red; font-weight: bold;'>INDEX LIST TRIGGERED (LINE 375 POSTGRESQLDATABASE.PHP</p>";
-		
+		*/
 		return $indexList;
 		
 	}
@@ -579,7 +592,7 @@ WHERE c.relkind IN ('i','')
 		//enum options.
 		//NOTE: In this one instance, we are including the table name in the values array
 		
-		return "varchar(255) not null default '" . $values['default'] . "', check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
+		return "varchar(255) not null default '" . $values['default'] . "' check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
 		
 	}
 	
@@ -686,6 +699,65 @@ WHERE c.relkind IN ('i','')
 		$spec='create index ix_' . $table . '_' . $spec['name'] . ' on ' . $table . ' using gist(' . $spec['name'] . ');';
 		
 		return $spec;
+	}
+	
+	/**
+	 * Returns true if this table exists
+	 * @todo Make a proper implementation
+	 */
+	function hasTable($tableName) {
+		return true;
+	}
+	
+	/**
+	 * Return enum values for the given field
+	 * @todo Make a proper implementation
+	 */
+	function enumValuesForField($tableName, $fieldName) {
+		return array('SiteTree','Page');
+	}
+
+	/**
+	 * Convert a SQLQuery object into a SQL statement
+	 * @todo There is a lot of duplication between this and MySQLDatabase::sqlQueryToString().  Perhaps they could both call a common
+	 * helper function in Database?
+	 */
+	public function sqlQueryToString(SQLQuery $sqlQuery) {
+		if (!$sqlQuery->from) return '';
+		$distinct = $sqlQuery->distinct ? "DISTINCT " : "";
+		if($sqlQuery->delete) {
+			$text = "DELETE ";
+		} else if($sqlQuery->select) {
+			$text = "SELECT $distinct" . implode(", ", $sqlQuery->select);
+		}
+		$text .= " FROM " . implode(" ", $sqlQuery->from);
+
+		if($sqlQuery->where) $text .= " WHERE (" . $sqlQuery->getFilter(). ")";
+		if($sqlQuery->groupby) $text .= " GROUP BY " . implode(", ", $sqlQuery->groupby);
+		if($sqlQuery->having) $text .= " HAVING ( " . implode(" ) AND ( ", $sqlQuery->having) . " )";
+		if($sqlQuery->orderby) $text .= " ORDER BY " . $sqlQuery->orderby;
+
+		if($sqlQuery->limit) {
+			$limit = $sqlQuery->limit;
+			// Pass limit as array or SQL string value
+			if(is_array($limit)) {
+				if(!array_key_exists('limit',$limit)) user_error('SQLQuery::limit(): Wrong format for $limit', E_USER_ERROR);
+
+				if(isset($limit['start']) && is_numeric($limit['start']) && isset($limit['limit']) && is_numeric($limit['limit'])) {
+					$combinedLimit = (int)$limit['start'] . ',' . (int)$limit['limit'];
+				} elseif(isset($limit['limit']) && is_numeric($limit['limit'])) {
+					$combinedLimit = (int)$limit['limit'];
+				} else {
+					$combinedLimit = false;
+				}
+				if(!empty($combinedLimit)) $this->limit = $combinedLimit;
+
+			} else {
+				$text .= " LIMIT " . $sqlQuery->limit;
+			}
+		}
+		
+		return $text;
 	}
 }
 
