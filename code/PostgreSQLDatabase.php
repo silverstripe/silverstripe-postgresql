@@ -109,9 +109,9 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 		
-		/*
+		
 		echo 'sql: ' . $sql . '<br>';
-		*/
+		
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -209,7 +209,8 @@ class PostgreSQLDatabase extends Database {
 			if($this_index['type']=='fulltext'){
 				//ALTER TABLE tblMessages ADD COLUMN idxFTI tsvector;
 				//CREATE INDEX ix_vault_indexed_words ON vault_indexed USING gist(words);
-				$fulltexts.=$this_index['name'] . ' tsvector, ';
+				
+				//$fulltexts.=$this_index['name'] . ' tsvector, ';
 			}
 		}
 		
@@ -399,7 +400,8 @@ class PostgreSQLDatabase extends Database {
 		} else {
 			//create a type-specific index
 			if($indexSpec['type']=='fulltext'){
-				return 'create index ix_' . $tableName . '_' . $indexSpec['name'] . " ON \"" . $tableName . "\" USING gist(" . $indexSpec['name'] . ');';
+				//return 'create index ix_' . $tableName . '_' . $indexSpec['name'] . " ON \"" . $tableName . "\" USING gist(" . $indexSpec['name'] . ');';
+				return '';
 			}
 		}
 		
