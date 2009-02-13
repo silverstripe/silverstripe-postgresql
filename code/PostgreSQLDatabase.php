@@ -110,7 +110,7 @@ class PostgreSQLDatabase extends Database {
 		}
 		
 		
-		echo 'sql: ' . $sql . '<br>';
+		//echo 'sql: ' . $sql . '<br>';
 		
 		$handle = pg_query($this->dbConn, $sql);
 		
@@ -149,14 +149,6 @@ class PostgreSQLDatabase extends Database {
 	
 	public function createDatabase() {
 		$this->query("CREATE DATABASE $this->database");
-		//$this->query("USE $this->database");
-
-		//$this->tableList = $this->fieldList = $this->indexList = null;
-
-		//if(mysql_select_db($this->database, $this->dbConn)) {
-		//	$this->active = true;
-		//	return true;
-		//}
 	}
 
 	/**
@@ -199,25 +191,29 @@ class PostgreSQLDatabase extends Database {
 		//if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($k, $v) . ",\n";
 		//we need to generate indexes like this: CREATE INDEX IX_vault_to_export ON vault (to_export);
 		
-		//If we have a fulltext search request, then we need to create a special column
-		//for GiST searches
-		echo 'creating table with these indexes:<pre>';
+		echo 'creating table: <pre>';
 		print_r($indexes);
 		echo '</pre>';
+		//If we have a fulltext search request, then we need to create a special column
+		//for GiST searches
 		$fulltexts='';
-		foreach($indexes as $this_index){
+		foreach($indexes as $name=>$this_index){
 			if($this_index['type']=='fulltext'){
 				//ALTER TABLE tblMessages ADD COLUMN idxFTI tsvector;
 				//CREATE INDEX ix_vault_indexed_words ON vault_indexed USING gist(words);
 				
 				//$fulltexts.=$this_index['name'] . ' tsvector, ';
+				
+				//For full text search, we need to create a column for the index 
+				$fulltexts .= "\"ts_$name\" tsvector, ";
+				
 			}
 		}
 		
 		if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($tableName, $k, $v) . "\n";
 		
+		echo 'indexes: ' . $indexSchemas . '<br>';
 		$this->query("CREATE TABLE \"$tableName\" (
-				\"ID\" SERIAL8 NOT NULL,
 				$fieldSchemas
 				$fulltexts
 				primary key (\"ID\")
@@ -238,13 +234,15 @@ class PostgreSQLDatabase extends Database {
 		$alterList = array();
 		if($newFields) foreach($newFields as $k => $v) $alterList[] .= "ADD \"$k\" $v";
 		//if($newIndexes) foreach($newIndexes as $k => $v) $alterList[] .= "ADD " . $this->getIndexSqlDefinition($tableName, $k, $v);
-		if($alteredFields) foreach($alteredFields as $k => $v) $alterList[] .= "CHANGE \"$k\" \"$k\" $v";
 		
-		/*
-		echo 'alterations:<pre>';
-		print_r($newFields);
-		echo '</pre>';
-		*/
+		if($alteredFields) {
+			foreach($alteredFields as $k => $v) {
+				
+				$val=$this->alterTableAlterColumn($tableName, $k, $v);
+				if($val!='')
+					$alterList[] .= $val;
+			}
+		}
 		
 		//DB ABSTRACTION: we need to change the constraints to be a separate 'add' command,
 		//see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
@@ -254,17 +252,62 @@ class PostgreSQLDatabase extends Database {
 			$alterList[] .= "ADD ". $this->getIndexSqlDefinition($tableName, $k, $v);
  		}
 
-		if($alterList) {
+ 		if($alterList) {
 			$alterations = implode(",\n", $alterList);
 			$this->query("ALTER TABLE \"$tableName\" " . $alterations);
 		}
 	}
-
+	
+	/*
+	 * Creates an ALTER expression for a column in PostgreSQL
+	 * 
+	 * @param $tableName Name of the table to be altered
+	 * @param $colName   Name of the column to be altered
+	 * @param $colSpec   String which contains conditions for a column
+	 * @return string
+	 */
+	private function alterTableAlterColumn($tableName, $colName, $colSpec){
+		// First, we split the column specifications into parts
+		// TODO: this returns an empty array for the following string: int(11) not null auto_increment
+		//		 on second thoughts, why is an auto_increment field being passed through?
+		
+		$pattern = '/^([\w()]+)\s?((?:not\s)?null)?\s?(default\s[\w\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
+		preg_match($pattern, $colSpec, $matches);
+		
+		/*if (isset($matches)) {
+			echo "sql:$colSpec <pre>";
+			print_r($matches);
+			echo '</pre>';
+		}*/
+		
+		if($matches[1]=='SERIAL8')
+			return '';
+			
+		if(isset($matches[1])) {
+			$alterCol = "ALTER COLUMN \"$colName\" TYPE $matches[1]\n";
+		
+			// SET null / not null
+			if(!empty($matches[2])) $alterCol .= ",\nALTER COLUMN \"$colName\" SET $matches[2]";
+			
+			// SET default (we drop it first, for reasons of precaution)
+			if(!empty($matches[3])) {
+				$alterCol .= ",\nALTER COLUMN \"$colName\" DROP DEFAULT";
+				$alterCol .= ",\nALTER COLUMN \"$colName\" SET $matches[3]";
+			}
+			
+			// SET check constraint (The constraint HAS to be dropped)
+			if(!empty($matches[4])) {
+					$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+					$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+			}
+		}
+		
+		return isset($alterCol) ? $alterCol : '';
+	}
+	
 	public function renameTable($oldTableName, $newTableName) {
 		$this->query("ALTER TABLE \"$oldTableName\" RENAME \"$newTableName\"");
 	}
-	
-	
 	
 	/**
 	 * Checks a table's integrity and repairs it if necessary.
@@ -321,15 +364,16 @@ class PostgreSQLDatabase extends Database {
 	public function renameField($tableName, $oldName, $newName) {
 		$fieldList = $this->fieldList($tableName);
 		if(array_key_exists($oldName, $fieldList)) {
-			$this->query("ALTER TABLE \"$tableName\" CHANGE \"$oldName\" \"$newName\" " . $fieldList[$oldName]);
+			$this->query("ALTER TABLE \"$tableName\" RENAME COLUMN \"$oldName\" TO \"$newName\"");
 		}
 	}
 	
 	public function fieldList($table) {
-		$fields = $this->query("SELECT b.attname FROM pg_class a 
-			INNER JOIN pg_attribute b ON a.relfilenode=b.attrelid 
-			WHERE a.relname='$table' 
-			AND NOT b.attisdropped AND b.attnum>0")->column();
+		$fields = $this->query("SELECT a.attname
+									FROM pg_class c INNER JOIN pg_attribute a
+									ON c.oid = a.attrelid
+								WHERE c.relkind = 'r'::\"char\" AND c.relname = '$table' 
+									AND NOT a.attisdropped AND a.attnum > 0;")->column();
 		
 		$output = array();
 		if($fields) foreach($fields as $field) {
@@ -346,7 +390,6 @@ class PostgreSQLDatabase extends Database {
 	 * @param string $indexSpec The specification of the index, see Database::requireIndex() for more details.
 	 */
 	public function createIndex($tableName, $indexName, $indexSpec) {
-		//$this->query("ALTER TABLE \"$tableName\" ADD " . $this->getIndexSqlDefinition($indexName, $indexSpec));
 		$this->query($this->getIndexSqlDefinition($tableName, $indexName, $indexSpec));
 	}
 	
@@ -374,46 +417,22 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec) {
-	    //$indexSpec = trim($indexSpec);
-	    //if($indexSpec[0] != '(') list($indexType, $indexFields) = explode(' ',$indexSpec,2);
-	    //else $indexFields = $indexSpec;
-	    //if(!isset($indexType)) {
-		//	$indexType = 'create index';
-		//}
-		//CREATE INDEX IX_vault_to_export ON vault (to_export);
-		
-		echo 'index spec:<pre>';
-		print_r($indexSpec);
-		echo '</pre>';
-		if(!isset($indexSpec['type'])){
-			//It's not the best method, but to keep things simple, we've allowed unique indexes to be
-			//specified as inline strings.  So now we need to detect 'unique (' as the first word, and
-			//do things differently if that's the case.
-			//The alternative is to force unique indexes to adopt the complex index method (below)
-			
-			$indexSpec=$indexSpec['sql'];
-		
-			$unique='';
-			if(substr($indexSpec, 0, 8)=='unique ('){
-				$unique='unique ';
-				$indexSpec=substr($indexSpec, 8);
-			}
-			
+	    
+		if(!is_array($indexSpec)){
 			$indexSpec=trim($indexSpec, '()');
 			$bits=explode(',', $indexSpec);
 			$indexes="\"" . implode("\",\"", $bits) . "\"";
-			echo 'the indexes are ' . $indexes . '<br>';
-			return 'create ' . $unique . 'index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (" . $indexes . ');';
+			
+			return 'create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (" . $indexes . ");";
 		} else {
 			//create a type-specific index
-			if($indexSpec['type']=='fulltext'){
-				//return 'create index ix_' . $tableName . '_' . $indexSpec['name'] . " ON \"" . $tableName . "\" USING gist(" . $indexSpec['name'] . ');';
-				return '';
-			}
+			if($indexSpec['type']=='fulltext')
+				return 'create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING gist(\"ts_" . $indexName . "\");";
+						
+			if($indexSpec['type']=='unique')
+				return 'create unique index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\");";
 		}
 		
-		
-		//return "$indexType \"$indexName\" $indexFields";
 	}
 	
 	/**
@@ -445,6 +464,7 @@ class PostgreSQLDatabase extends Database {
 	 * @return array
 	 */
 	public function indexList($table) {
+
 		/*$indexes = DB::query("SHOW INDEXES IN \"$table\"");
 		
 		foreach($indexes as $index) {
@@ -466,7 +486,7 @@ class PostgreSQLDatabase extends Database {
 		}
 		
 		return $indexList;*/
-		//Obtained by starting postgres with the -E option:
+		/*//Obtained by starting postgres with the -E option:
 		$indexes=DB::query("SELECT c.relname as \"Name\",
   CASE c.relkind WHEN 'r' THEN 'table' WHEN 'v' THEN 'view' WHEN 'i' THEN 'index' WHEN 'S' THEN 'sequence' WHEN 's' THEN 'special' END as \"Type\",
   r.rolname as \"Owner\",
@@ -481,6 +501,18 @@ WHERE c.relkind IN ('i','')
   AND n.nspname !~ '^pg_toast'
   AND pg_catalog.pg_table_is_visible(c.oid)
   AND c2.relname='$table' AND c.relkind='index';");
+		*/
+		
+  		//Retrieve a list of indexes for the specified table
+		$indexes = DB::query("SELECT i.relname AS \"indexname\"
+   							  	FROM pg_index x
+   							    JOIN pg_class c ON c.oid = x.indrelid
+							    JOIN pg_class i ON i.oid = x.indexrelid
+							    LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+							    LEFT JOIN pg_tablespace t ON t.oid = i.reltablespace
+							  WHERE c.relkind = 'r'::\"char\" AND i.relkind = 'i'::\"char\"
+							  	AND c.relname = '$table';");
+
 		
   		//DB ABSTRACTION: TODO: we are not getting actual index information here, just the basic existence stuff:
 		foreach($indexes as $index) {
@@ -493,7 +525,8 @@ WHERE c.relkind IN ('i','')
 			} else {
 				$groupedIndexes[$index['Key_name']]['type'] = '';
 			}*/
-			$indexList[$index['Name']]=$index['Name'];
+			$indexList[$index['indexname']]=$index['indexname'];
+
 		}
 		
 		//foreach($groupedIndexes as $index => $details) {
@@ -502,13 +535,13 @@ WHERE c.relkind IN ('i','')
 			
 		//}
 		
-		//echo 'index list: <pre>';
-		//print_r($indexList);
-		//echo '</pre>';
-		/*
-		echo "<p style='color:red; font-weight: bold;'>INDEX LIST TRIGGERED (LINE 375 POSTGRESQLDATABASE.PHP</p>";
-		*/
-		return $indexList;
+		/*if (isset($indexList)) {
+			echo 'index list: <pre>';
+			print_r($indexList);
+			echo '</pre>';
+		}*/
+		
+		return isset($indexList) ? $indexList : null;
 		
 	}
 
@@ -708,6 +741,16 @@ WHERE c.relkind IN ('i','')
 		$spec='create index ix_' . $table . '_' . $spec['name'] . ' on ' . $table . ' using gist(' . $spec['name'] . ');';
 		
 		return $spec;
+	}
+	
+	/**
+	 * This returns the column which is the primary key for each table
+	 * In Postgres, it is a SERIAL8, which is the equivalent of an auto_increment
+	 *
+	 * @return string
+	 */
+	function IdColumn(){
+		return 'SERIAL8 NOT NULL';
 	}
 	
 	/**
