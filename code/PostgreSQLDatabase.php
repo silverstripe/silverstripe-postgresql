@@ -108,8 +108,7 @@ class PostgreSQLDatabase extends Database {
 		if(isset($_REQUEST['showqueries'])) { 
 			$starttime = microtime(true);
 		}
-		
-		
+				
 		//echo 'sql: ' . $sql . '<br>';
 		
 		$handle = pg_query($this->dbConn, $sql);
@@ -191,19 +190,11 @@ class PostgreSQLDatabase extends Database {
 		//if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($k, $v) . ",\n";
 		//we need to generate indexes like this: CREATE INDEX IX_vault_to_export ON vault (to_export);
 		
-		echo 'creating table: <pre>';
-		print_r($indexes);
-		echo '</pre>';
 		//If we have a fulltext search request, then we need to create a special column
 		//for GiST searches
 		$fulltexts='';
 		foreach($indexes as $name=>$this_index){
 			if($this_index['type']=='fulltext'){
-				//ALTER TABLE tblMessages ADD COLUMN idxFTI tsvector;
-				//CREATE INDEX ix_vault_indexed_words ON vault_indexed USING gist(words);
-				
-				//$fulltexts.=$this_index['name'] . ' tsvector, ';
-				
 				//For full text search, we need to create a column for the index 
 				$fulltexts .= "\"ts_$name\" tsvector, ";
 				
@@ -212,7 +203,6 @@ class PostgreSQLDatabase extends Database {
 		
 		if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($tableName, $k, $v) . "\n";
 		
-		echo 'indexes: ' . $indexSchemas . '<br>';
 		$this->query("CREATE TABLE \"$tableName\" (
 				$fieldSchemas
 				$fulltexts
@@ -280,7 +270,7 @@ class PostgreSQLDatabase extends Database {
 			echo '</pre>';
 		}*/
 		
-		if($matches[1]=='SERIAL8')
+		if($matches[1]=='serial8')
 			return '';
 			
 		if(isset($matches[1])) {
@@ -315,12 +305,6 @@ class PostgreSQLDatabase extends Database {
 	 * @return boolean Return true if the table has integrity after the method is complete.
 	 */
 	public function checkAndRepairTable($tableName) {
-		//if(!$this->runTableCheckCommand("VACUUM FULL \"$tableName\"")) {
-		//	Database::alteration_message("Table $tableName: repaired","repaired");
-		//	return $this->runTableCheckCommand("REPAIR TABLE \"$tableName\" USE_FRM");
-		//} else {
-		//	return true;
-		//}
 		$this->runTableCheckCommand("VACUUM FULL \"$tableName\"");
 		return true;
 	}
@@ -369,15 +353,21 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	public function fieldList($table) {
-		$fields = $this->query("SELECT a.attname
-									FROM pg_class c INNER JOIN pg_attribute a
-									ON c.oid = a.attrelid
-								WHERE c.relkind = 'r'::\"char\" AND c.relname = '$table' 
-									AND NOT a.attisdropped AND a.attnum > 0;")->column();
+		//Query from http://www.alberton.info/postgresql_meta_info.html
+		//This gets us more information than we need, but I've included it all for the moment....
+		$fields = $this->query("SELECT ordinal_position, column_name, data_type, column_default, is_nullable, character_maximum_length, numeric_precision FROM information_schema.columns WHERE table_name = '$table' ORDER BY ordinal_position;");
 		
 		$output = array();
 		if($fields) foreach($fields as $field) {
-			$output[$field] = true;
+			switch($field){
+				case 'bigint':
+					//We will assume that this is the ID column:
+					$output['column_name']=$this->IdColumn();
+					break;
+				default:
+					$output[$field['column_name']] = $field;
+			}
+			
 		}
 		
 		return $output;
@@ -412,8 +402,8 @@ class PostgreSQLDatabase extends Database {
 			}
 		}
 		
-		//return $indexSpec;
-		return '';
+		return $indexSpec;
+		//return '';
 	}
 	
 	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec) {
@@ -453,7 +443,6 @@ class PostgreSQLDatabase extends Database {
 	    	$indexType = "index";
 	    }
     
-		//$this->query("ALTER TABLE \"$tableName\" DROP INDEX \"$indexName\"");
 		$this->query("DROP INDEX $indexName");
 		$this->query("ALTER TABLE \"$tableName\" ADD $indexType \"$indexName\" $indexFields");
 	}
@@ -465,27 +454,6 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function indexList($table) {
 
-		/*$indexes = DB::query("SHOW INDEXES IN \"$table\"");
-		
-		foreach($indexes as $index) {
-			$groupedIndexes[$index['Key_name']]['fields'][$index['Seq_in_index']] = $index['Column_name'];
-			
-			if($index['Index_type'] == 'FULLTEXT') {
-				$groupedIndexes[$index['Key_name']]['type'] = 'fulltext ';
-			} else if(!$index['Non_unique']) {
-				$groupedIndexes[$index['Key_name']]['type'] = 'unique ';
-			} else {
-				$groupedIndexes[$index['Key_name']]['type'] = '';
-			}
-		}
-		
-		foreach($groupedIndexes as $index => $details) {
-			ksort($details['fields']);
-			$indexList[$index] = $details['type'] . '(' . implode(',',$details['fields']) . ')';
-			
-		}
-		
-		return $indexList;*/
 		/*//Obtained by starting postgres with the -E option:
 		$indexes=DB::query("SELECT c.relname as \"Name\",
   CASE c.relkind WHEN 'r' THEN 'table' WHEN 'v' THEN 'view' WHEN 'i' THEN 'index' WHEN 'S' THEN 'sequence' WHEN 's' THEN 'special' END as \"Type\",
@@ -528,18 +496,6 @@ WHERE c.relkind IN ('i','')
 			$indexList[$index['indexname']]=$index['indexname'];
 
 		}
-		
-		//foreach($groupedIndexes as $index => $details) {
-			//ksort($details['fields']);
-			//$indexList[$index] = $details['type'] . '(' . implode(',',$details['fields']) . ')';
-			
-		//}
-		
-		/*if (isset($indexList)) {
-			echo 'index list: <pre>';
-			print_r($indexList);
-			echo '</pre>';
-		}*/
 		
 		return isset($indexList) ? $indexList : null;
 		
@@ -587,11 +543,14 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function boolean($values){
-		//Annoyingly, we need to do a good old fashioned switch here:
+	public function boolean($values, $asDbValue=false){
+		//Annoyingly, we need to do a good ol' fashioned switch here:
 		($values['default']) ? $default='true' : $default='false';
 		
-		return 'boolean not null default ' . $default;
+		if($asDbValue)
+			return Array('data_type'=>'boolean');
+		else
+			return 'boolean not null default ' . $default;
 	}
 	
 	/**
@@ -615,12 +574,21 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function decimal($values){
+	public function decimal($values, $asDbValue=false){
 		//For reference, this is what typically gets passed to this function:
 		//$parts=Array('datatype'=>'decimal', 'precision'=>"$this->wholeSize,$this->decimalSize");
 		//DB::requireField($this->tableName, $this->name, "decimal($this->wholeSize,$this->decimalSize)");
 
-		return 'decimal(' . (int)$values['precision'] . ')';
+		// Avoid empty strings being put in the db
+		if($values['precision'] == '') {
+			$precision = 1;
+		} else {
+			$precision = $values['precision'];
+		}
+		
+		if($asDbValue)
+			return Array('data_type'=>'numeric', 'numeric_precision'=>'9');
+		else return 'decimal(' . $precision . ') not null';
 	}
 	
 	/**
@@ -630,8 +598,7 @@ WHERE c.relkind IN ('i','')
 	 * @return string
 	 */
 	public function enum($values){
-		//Enums are a bit different. We'll be creating a varchar(255) with a constraint of all the usual
-		//enum options.
+		//Enums are a bit different. We'll be creating a varchar(255) with a constraint of all the usual enum options.
 		//NOTE: In this one instance, we are including the table name in the values array
 		
 		return "varchar(255) not null default '" . $values['default'] . "' check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
@@ -645,12 +612,14 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function float($values){
+	public function float($values, $asDbValue=false){
 		//For reference, this is what typically gets passed to this function:
 		//$parts=Array('datatype'=>'float');
 		//DB::requireField($this->tableName, $this->name, "float");
 		
-		return 'float';
+		if($asDbValue)
+			return Array('data_type'=>'double precision');
+		else return 'float';
 	}
 	
 	/**
@@ -659,9 +628,13 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function int($values){
+	public function int($values, $asDbValue=false){
 		//We'll be using an 8 digit precision to keep it in line with the serial8 datatype for ID columns
-		return 'numeric(8) not null default ' . (int)$values['default'];
+		
+		if($asDbValue)
+			return Array('data_type'=>'numeric', 'numeric_precision'=>'8');
+		else
+			return 'numeric(8) not null default ' . (int)$values['default'];
 	}
 	
 	/**
@@ -671,12 +644,15 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function ssdatetime($values){
+	public function ssdatetime($values, $asDbValue=false){
 		//For reference, this is what typically gets passed to this function:
 		//$parts=Array('datatype'=>'datetime');
 		//DB::requireField($this->tableName, $this->name, $values);
 
-		return 'timestamp';
+		if($asDbValue)
+			return Array('data_type'=>'timestamp without time zone');
+		else
+			return 'timestamp';
 	}
 	
 	/**
@@ -685,12 +661,15 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function text($values){
+	public function text($values, $asDbValue=false){
 		//For reference, this is what typically gets passed to this function:
 		//$parts=Array('datatype'=>'mediumtext', 'character set'=>'utf8', 'collate'=>'utf8_general_ci');
 		//DB::requireField($this->tableName, $this->name, "mediumtext character set utf8 collate utf8_general_ci");
 		
-		return 'text';
+		if($asDbValue)
+			return Array('data_type'=>'text');
+		else
+			return 'text';
 	}
 	
 	/**
@@ -714,12 +693,23 @@ WHERE c.relkind IN ('i','')
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function varchar($values){
+	public function varchar($values, $asDbValue=false){
 		//For reference, this is what typically gets passed to this function:
 		//$parts=Array('datatype'=>'varchar', 'precision'=>$this->size, 'character set'=>'utf8', 'collate'=>'utf8_general_ci');
 		//DB::requireField($this->tableName, $this->name, "varchar($this->size) character set utf8 collate utf8_general_ci");
-		
-		return 'varchar(' . $values['precision'] . ')';
+		if($asDbValue)
+			return Array('data_type'=>'character varying', 'character_maximum_length'=>'255');
+		else
+			return 'varchar(' . $values['precision'] . ')';
+	}
+	
+	/*
+	 * Return a 4 digit numeric type.  MySQL has a proprietary 'Year' type.
+	 */
+	public function year($values, $asDbValue=false){
+		if($asDbValue)
+			return Array('data_type'=>'numeric', 'numeric_precision'=>'4');
+		else return 'numeric(4)'; 
 	}
 	
 	function escape_character($escape=false){
@@ -735,7 +725,6 @@ WHERE c.relkind IN ('i','')
 	 * @param array $spec
 	 */
 	function fulltext($table, $spec){
-		//CREATE INDEX ix_vault_indexed_words ON vault_indexed USING gist(words);
 		//$spec['name'] is the column we've created that holds all the words we want to index.
 		//This is a coalesced collection of multiple columns if necessary
 		$spec='create index ix_' . $table . '_' . $spec['name'] . ' on ' . $table . ' using gist(' . $spec['name'] . ');';
@@ -749,8 +738,10 @@ WHERE c.relkind IN ('i','')
 	 *
 	 * @return string
 	 */
-	function IdColumn(){
-		return 'SERIAL8 NOT NULL';
+	function IdColumn($asDbValue=false){
+		if($asDbValue)
+			return 'bigint';
+		else return 'serial8 not null';
 	}
 	
 	/**
