@@ -121,6 +121,7 @@ class PostgreSQLDatabase extends Database {
 		DB::$lastQuery=$handle;
 		
 		if(!$handle && $errorLevel) $this->databaseError("Couldn't run query: $sql | " . pgsql_error($this->dbConn), $errorLevel);
+				
 		return new PostgreSQLQuery($this, $handle);
 	}
 	
@@ -179,8 +180,11 @@ class PostgreSQLDatabase extends Database {
 	 * Returns true if the named database exists.
 	 */
 	public function databaseExists($name) {
-		$SQL_name = Convert::raw2sql($name);
-		return $this->query("SHOW DATABASES LIKE '$SQL_name'")->value() ? true : false;
+		//TODO: fix me to test for the existance of the database
+		//For the moment, this always returns true
+		//$SQL_name = Convert::raw2sql($name);
+		//return $this->query("SHOW DATABASES LIKE '$SQL_name'")->value() ? true : false;
+		return true;
 	}
 	
 	public function createTable($tableName, $fields = null, $indexes = null) {
@@ -359,10 +363,50 @@ class PostgreSQLDatabase extends Database {
 		
 		$output = array();
 		if($fields) foreach($fields as $field) {
-			switch($field){
-				case 'bigint':
-					//We will assume that this is the ID column:
-					$output['column_name']=$this->IdColumn();
+			switch($field['data_type']){
+				case 'character varying':
+					//Check to see if there's a constraint attached to this column:
+					$constraint=$this->query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='" . $table . '_' . $field['column_name'] . "_check' ORDER BY 1;")->first();
+					if($constraint){
+						//Now we need to break this constraint text into bits so we can see what we have:
+						//Examples:
+						//CHECK ("CanEditType"::text = ANY (ARRAY['LoggedInUsers'::character varying, 'OnlyTheseUsers'::character varying, 'Inherit'::character varying]::text[]))
+						//CHECK ("ClassName"::text = 'PageComment'::text)
+						
+						//TODO: replace all this with a regular expression!
+						$value=$constraint['pg_get_constraintdef'];
+						$value=substr($value, strpos($value,'='));
+						$value=str_replace("''", "'", $value);
+						
+						$in_value=false;
+						$constraints=Array();
+						$current_value='';
+						for($i=0; $i<strlen($value); $i++){
+							$char=substr($value, $i, 1);
+							if($in_value)
+								$current_value.=$char;
+							
+							if($char=="'"){
+								if(!$in_value)
+									$in_value=true;
+								else {
+									$in_value=false;
+									$constraints[]=substr($current_value, 0, -1);
+									$current_value='';
+								}
+							}
+						}
+						
+						if(sizeof($constraints)>0){
+							//Get the default:
+							//TODO: perhaps pass this to the enum function so we can 
+							$default=trim(substr($field['column_default'], 0, strpos($field['column_default'], '::')), "'");
+							//$field['data_type']="varchar(255) not null default '" . $default . "' check (\"" . $field['column_name'] . "\" in ('" . implode("', '", $constraints) . "'))";
+							$field['data_type']=$this->enum(Array('default'=>$default, 'name'=>$field['column_name'], 'enums'=>$constraints));		
+						}
+					}
+					
+					$output[$field['column_name']]=$field;
 					break;
 				default:
 					$output[$field['column_name']] = $field;
@@ -720,7 +764,7 @@ WHERE c.relkind IN ('i','')
 	}
 	
 	/**
-	 * Create a fulltext search datatype for MySQL
+	 * Create a fulltext search datatype for PostgreSQL
 	 *
 	 * @param array $spec
 	 */
