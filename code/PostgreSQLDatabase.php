@@ -109,8 +109,6 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 				
-		//echo 'sql: ' . $sql . '<br>';
-		
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -191,9 +189,6 @@ class PostgreSQLDatabase extends Database {
 		$fieldSchemas = $indexSchemas = "";
 		if($fields) foreach($fields as $k => $v) $fieldSchemas .= "\"$k\" $v,\n";
 		
-		//if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($k, $v) . ",\n";
-		//we need to generate indexes like this: CREATE INDEX IX_vault_to_export ON vault (to_export);
-		
 		//If we have a fulltext search request, then we need to create a special column
 		//for GiST searches
 		$fulltexts='';
@@ -240,16 +235,24 @@ class PostgreSQLDatabase extends Database {
 		
 		//DB ABSTRACTION: we need to change the constraints to be a separate 'add' command,
 		//see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
-		
-		if($alteredIndexes) foreach($alteredIndexes as $k => $v) {
-			$alterList[] .= "DROP INDEX \"$k\"";
-			$alterList[] .= "ADD ". $this->getIndexSqlDefinition($tableName, $k, $v);
+		$alterIndexList=Array();
+		if($alteredIndexes) foreach($alteredIndexes as $v) {
+			if(is_array($v))
+				$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+			else
+				$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
+						
+			$k=$v['value'];
+			$alterIndexList[] .= $this->getIndexSqlDefinition($tableName, $k, $v);
  		}
 
  		if($alterList) {
 			$alterations = implode(",\n", $alterList);
 			$this->query("ALTER TABLE \"$tableName\" " . $alterations);
 		}
+		
+		foreach($alterIndexList as $alteration)
+			$this->query($alteration);
 	}
 	
 	/*
@@ -433,40 +436,80 @@ class PostgreSQLDatabase extends Database {
 	 * Some indexes may be arrays, such as fulltext and unique indexes, and this allows database-specific
 	 * arrays to be created.
 	 */
-	public function convertIndexSpec($indexSpec){
-		if(is_array($indexSpec)){
-			//Here we create a db-specific version of whatever index we need to create.
-			switch($indexSpec['type']){
-				case 'fulltext':
-					$indexSpec='fulltext (' . str_replace(' ', '', $indexSpec['value']) . ')';
-					break;
-				case 'unique':
-					$indexSpec='unique (' . $indexSpec['value'] . ')';
-					break;
-			}
-		}
+	public function convertIndexSpec($indexSpec, $asDbValue=false, $table=''){
 		
+		if(!$asDbValue){
+			if(is_array($indexSpec)){
+				//Here we create a db-specific version of whatever index we need to create.
+				switch($indexSpec['type']){
+					case 'fulltext':
+						$indexSpec='fulltext (' . str_replace(' ', '', $indexSpec['value']) . ')';
+						break;
+					case 'unique':
+						$indexSpec='unique (' . $indexSpec['value'] . ')';
+						break;
+					case 'btree':
+						$indexSpec='using btree (' . $indexSpec['value'] . ')';
+						break;
+					case 'hash':
+						$indexSpec='using hash (' . $indexSpec['value'] . ')';
+						break;
+				}
+			}
+		} else {
+			$indexSpec='ix_' . $table . '_' . $indexSpec;
+		}
 		return $indexSpec;
-		//return '';
 	}
 	
-	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec) {
+	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec, $asDbValue=false) {
 	    
-		if(!is_array($indexSpec)){
-			$indexSpec=trim($indexSpec, '()');
-			$bits=explode(',', $indexSpec);
-			$indexes="\"" . implode("\",\"", $bits) . "\"";
-			
-			return 'create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (" . $indexes . ");";
-		} else {
-			//create a type-specific index
-			if($indexSpec['type']=='fulltext')
-				return 'create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING gist(\"ts_" . $indexName . "\");";
+		if(!$asDbValue){
+			if(!is_array($indexSpec)){
+				$indexSpec=trim($indexSpec, '()');
+				$bits=explode(',', $indexSpec);
+				$indexes="\"" . implode("\",\"", $bits) . "\"";
+				
+				return 'create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (" . $indexes . ");";
+			} else {
+				//create a type-specific index
+				switch($indexSpec['type']){
+					case 'fulltext':
+						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING gist(\"ts_" . $indexName . "\");";
+						break;
 						
-			if($indexSpec['type']=='unique')
-				return 'create unique index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\");";
+					case 'unique':
+						$spec='create unique index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\");";
+						break;
+						
+					case 'btree':
+						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING btree (\"" . $indexSpec['value'] . "\");";
+						break;
+	
+					case 'hash':
+						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\");";
+						break;
+						
+					case 'rtree':
+						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING rtree (\"" . $indexSpec['value'] . "\");";
+						break;
+						
+					default:
+						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\");";
+				}
+				
+				return $spec;
+	
+			}
+		} else {
+			$indexName=trim($indexName, '()');
+			//return 'ix_' . $tableName . '_' . $indexName;
+			return $indexName;
 		}
-		
+	}
+	
+	function getDbSqlDefinition($tableName, $indexName, $indexSpec){
+		return $this->getIndexSqlDefinition($tableName, $indexName, $indexSpec, true);
 	}
 	
 	/**
@@ -497,50 +540,42 @@ class PostgreSQLDatabase extends Database {
 	 * @return array
 	 */
 	public function indexList($table) {
-
-		/*//Obtained by starting postgres with the -E option:
-		$indexes=DB::query("SELECT c.relname as \"Name\",
-  CASE c.relkind WHEN 'r' THEN 'table' WHEN 'v' THEN 'view' WHEN 'i' THEN 'index' WHEN 'S' THEN 'sequence' WHEN 's' THEN 'special' END as \"Type\",
-  r.rolname as \"Owner\",
- c2.relname as \"Table\"
-FROM pg_catalog.pg_class c
-     JOIN pg_catalog.pg_roles r ON r.oid = c.relowner
-     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-     LEFT JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid
-     LEFT JOIN pg_catalog.pg_class c2 ON i.indrelid = c2.oid
-WHERE c.relkind IN ('i','')
-  AND n.nspname <> 'pg_catalog'
-  AND n.nspname !~ '^pg_toast'
-  AND pg_catalog.pg_table_is_visible(c.oid)
-  AND c2.relname='$table' AND c.relkind='index';");
-		*/
-		
+	
   		//Retrieve a list of indexes for the specified table
-		$indexes = DB::query("SELECT i.relname AS \"indexname\"
-   							  	FROM pg_index x
-   							    JOIN pg_class c ON c.oid = x.indrelid
-							    JOIN pg_class i ON i.oid = x.indexrelid
-							    LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
-							    LEFT JOIN pg_tablespace t ON t.oid = i.reltablespace
-							  WHERE c.relkind = 'r'::\"char\" AND i.relkind = 'i'::\"char\"
-							  	AND c.relname = '$table';");
-
+		$indexes=DB::query("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE tablename='$table';");
 		
-  		//DB ABSTRACTION: TODO: we are not getting actual index information here, just the basic existence stuff:
-		foreach($indexes as $index) {
-			/*$groupedIndexes[$index['Key_name']]['fields'][$index['Seq_in_index']] = $index['Column_name'];
-			
-			if($index['Index_type'] == 'FULLTEXT') {
-				$groupedIndexes[$index['Key_name']]['type'] = 'fulltext ';
-			} else if(!$index['Non_unique']) {
-				$groupedIndexes[$index['Key_name']]['type'] = 'unique ';
-			} else {
-				$groupedIndexes[$index['Key_name']]['type'] = '';
-			}*/
-			$indexList[$index['indexname']]=$index['indexname'];
+  		foreach($indexes as $index) {
+  			//We don't actually need the entire created command, just a few bits:
+  			$prefix='';
+  			
+  			//Check for uniques:
+  			if(substr($index['indexdef'], 0, 13)=='CREATE UNIQUE')
+  				$prefix='unique ';
+  				
+  			//check for hashes, btrees etc:
+  			if(strpos(strtolower($index['indexdef']), 'using hash ')!==false)
+  				$prefix='using hash ';
 
-		}
-		
+  			//TODO: Fix me: btree is the default index type:
+  			//if(strpos(strtolower($index['indexdef']), 'using btree ')!==false)
+  			//	$prefix='using btree ';
+  				
+  			if(strpos(strtolower($index['indexdef']), 'using rtree ')!==false)
+  				$prefix='using rtree ';
+
+  			$value=explode(' ', substr($index['indexdef'], strpos($index['indexdef'], ' USING ')+7));
+  			
+  			if(sizeof($value)>2){
+	  			for($i=2; $i<sizeof($value); $i++)
+	  				$value[1].=$value[$i];
+  			}
+  			
+  			$key=trim(trim(str_replace("\"", '', $value[1])), '()');
+  			$indexList[$key]['indexname']=$index['indexname'];
+  			$indexList[$key]['spec']=$prefix . '(' . $key . ')';
+  			
+  		}
+
 		return isset($indexList) ? $indexList : null;
 		
 	}
