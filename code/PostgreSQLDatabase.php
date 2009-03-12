@@ -109,6 +109,7 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 				
+		//echo $sql . '<hr>';
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -624,12 +625,12 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function boolean($values, $asDbValue=false){
 		//Annoyingly, we need to do a good ol' fashioned switch here:
-		($values['default']) ? $default='true' : $default='false';
+		($values['default']) ? $default='1' : $default='0';
 		
 		if($asDbValue)
-			return Array('data_type'=>'boolean');
+			return Array('data_type'=>'smallint');
 		else
-			return 'boolean not null default ' . $default;
+			return 'smallint not null default ' . $default;
 	}
 	
 	/**
