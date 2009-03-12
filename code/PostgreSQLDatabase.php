@@ -832,6 +832,13 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	/**
+	 * Returns the SQL command to get all the tables in this database
+	 */
+	function allTablesSQL(){
+		return "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE';";
+	}
+	
+	/**
 	 * Return enum values for the given field
 	 * @todo Make a proper implementation
 	 */
@@ -839,6 +846,15 @@ class PostgreSQLDatabase extends Database {
 		return array('SiteTree','Page');
 	}
 
+	/**
+	 * Because NOW() doesn't always work...
+	 * MSSQL, I'm looking at you
+	 *
+	 */
+	function now(){
+		return 'NOW()';
+	}
+	
 	/**
 	 * Convert a SQLQuery object into a SQL statement
 	 * @todo There is a lot of duplication between this and MySQLDatabase::sqlQueryToString().  Perhaps they could both call a common
@@ -880,6 +896,14 @@ class PostgreSQLDatabase extends Database {
 		}
 		
 		return $text;
+	}
+	
+	/*
+	 * This will return text which has been escaped in a database-friendly manner
+	 * Using PHP's addslashes method won't work in MSSQL
+	 */
+	function addslashes($value){
+		return pg_escape_string($value);
 	}
 }
 
