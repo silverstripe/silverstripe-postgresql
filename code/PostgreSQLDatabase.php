@@ -223,7 +223,6 @@ class PostgreSQLDatabase extends Database {
 		
 		$alterList = array();
 		if($newFields) foreach($newFields as $k => $v) $alterList[] .= "ADD \"$k\" $v";
-		//if($newIndexes) foreach($newIndexes as $k => $v) $alterList[] .= "ADD " . $this->getIndexSqlDefinition($tableName, $k, $v);
 		
 		if($alteredFields) {
 			foreach($alteredFields as $k => $v) {
@@ -247,6 +246,11 @@ class PostgreSQLDatabase extends Database {
 			$alterIndexList[] .= $this->getIndexSqlDefinition($tableName, $k, $v);
  		}
 
+		//Add the new indexes:
+ 		if($newIndexes) foreach($newIndexes as $k=>$v){
+ 			$alterIndexList[] = $this->getIndexSqlDefinition($tableName, $k, $v);
+ 		}
+ 		
  		if($alterList) {
 			$alterations = implode(",\n", $alterList);
 			$this->query("ALTER TABLE \"$tableName\" " . $alterations);
@@ -444,7 +448,8 @@ class PostgreSQLDatabase extends Database {
 				//Here we create a db-specific version of whatever index we need to create.
 				switch($indexSpec['type']){
 					case 'fulltext':
-						$indexSpec='fulltext (' . str_replace(' ', '', $indexSpec['value']) . ')';
+						//$indexSpec='fulltext (' . str_replace(' ', '', $indexSpec['value']) . ')';
+						$indexSpec='(ts_' . $indexSpec['indexName'] . ')';
 						break;
 					case 'unique':
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
@@ -504,7 +509,7 @@ class PostgreSQLDatabase extends Database {
 			}
 		} else {
 			$indexName=trim($indexName, '()');
-			//return 'ix_' . $tableName . '_' . $indexName;
+			
 			return $indexName;
 		}
 	}
@@ -905,6 +910,19 @@ class PostgreSQLDatabase extends Database {
 	 */
 	function addslashes($value){
 		return pg_escape_string($value);
+	}
+	
+	/*
+	 * This changes the index name depending on database requirements.
+	 * MySQL doesn't need any changes.
+	 */
+	function modifyIndex($index, $spec){
+		
+		if(is_array($spec) && $spec['type']=='fulltext')
+			return 'ts_' . str_replace(',', '_', $index);
+		else
+			return str_replace('_', ',', $index);
+
 	}
 }
 
