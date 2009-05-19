@@ -186,9 +186,10 @@ class PostgreSQLDatabase extends Database {
 		return true;
 	}
 	
-	public function createTable($tableName, $fields = null, $indexes = null) {
+	public function createTable($tableName, $fields = null, $indexes = null, $options = null) {
 		$fieldSchemas = $indexSchemas = "";
 		if($fields) foreach($fields as $k => $v) $fieldSchemas .= "\"$k\" $v,\n";
+		$addOptions = (isset($options[$this->class])) ? $options[$this->class] : null;
 		
 		//If we have a fulltext search request, then we need to create a special column
 		//for GiST searches
@@ -207,7 +208,7 @@ class PostgreSQLDatabase extends Database {
 				$fieldSchemas
 				$fulltexts
 				primary key (\"ID\")
-			); $indexSchemas");
+			); $indexSchemas $addOptions");
 	}
 
 	/**
@@ -218,7 +219,7 @@ class PostgreSQLDatabase extends Database {
 	 * @param $alteredFields Updated fields, a map of field name => field schema
 	 * @param $alteredIndexes Updated indexes, a map of index name => index type
 	 */
-	public function alterTable($tableName, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null) {
+	public function alterTable($tableName, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null, $alteredOptions = null) {
 		$fieldSchemas = $indexSchemas = "";
 		
 		$alterList = array();
@@ -254,6 +255,14 @@ class PostgreSQLDatabase extends Database {
  		if($alterList) {
 			$alterations = implode(",\n", $alterList);
 			$this->query("ALTER TABLE \"$tableName\" " . $alterations);
+		}
+		
+		if($alteredOptions && isset($alteredOptions[$this->class])) {
+			$this->query(sprintf("ALTER TABLE \"%s\" %s", $tableName, $alteredOptions[$this->class]));
+			Database::alteration_message(
+				sprintf("Table %s options changed: %s", $tableName, $alteredOptions[$this->class]),
+				"changed"
+			);
 		}
 		
 		foreach($alterIndexList as $alteration)
