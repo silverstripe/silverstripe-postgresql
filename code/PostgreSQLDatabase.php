@@ -29,6 +29,15 @@ class PostgreSQLDatabase extends Database {
 	 */
 	private $database;
 	
+	/*
+	 * This holds the name of the original database
+	 * So if you switch to another for unit tests, you
+	 * can then switch back in order to drop the temp database 
+	 */
+	private $database_original;
+	
+	private $parameters;
+	
 	/**
 	 * Connect to a PostgreSQL database.
 	 * @param array $parameters An map of parameters, which should include:
@@ -39,22 +48,44 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function __construct($parameters) {
 		
+		//We will store these connection parameters for use elsewhere (ie, unit tests)
+		$this->parameters=$parameters;
+		$this->connectDatabase();
+		
+		$this->database_original=$this->database;
+	}
+	
+	/*
+	 * Uses whatever connection details are in the $parameters array to connect to a database of a given name
+	 */
+	function connectDatabase(){
+		
+		$parameters=$this->parameters;
+		
+		if(!$parameters)
+			return false;
+			
 		($parameters['username']!='') ? $username=' user=' . $parameters['username'] : $username='';
 		($parameters['password']!='') ? $password=' password=' . $parameters['password'] : $password='';
+		
+		if(!isset($this->database))
+			$dbName=$parameters['database'];
+		else $dbName=$this->database;
+		
 		//assumes that the server and dbname will always be provided:
-		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=' . $parameters['database'] . $username . $password);
+		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=' . $dbName . $username . $password);
 		
 		//By virtue of getting here, the connection is active:
 		$this->active=true;
-		$this->database = $parameters['database'];
-		
+		$this->database = $dbName;
+				
 		if(!$this->dbConn) {
 			$this->databaseError("Couldn't connect to PostgreSQL database");
+			return false;
 		}
-
-		parent::__construct();
+		
+		return true;
 	}
-	
 	/**
 	 * Not implemented, needed for PDO
 	 */
@@ -64,14 +95,15 @@ class PostgreSQLDatabase extends Database {
 	
 	/**
 	 * Returns true if this database supports collations
+	 * TODO: get rid of this?
 	 * @return boolean
 	 */
 	public function supportsCollations() {
-		return $this->getVersion() >= 4.1;
+		return true;
 	}
 	
 	/**
-	 * The version of MySQL.
+	 * The version of PostgreSQL.
 	 * @var float
 	 */
 	private $pgsqlVersion;
@@ -92,7 +124,7 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	/**
-	 * Get the database server, namely mysql.
+	 * Get the database server, namely PostgreSQL.
 	 * @return string
 	 */
 	public function getDatabaseServer() {
@@ -100,6 +132,7 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	public function query($sql, $errorLevel = E_USER_ERROR) {
+		
 		if(isset($_REQUEST['previewwrite']) && in_array(strtolower(substr($sql,0,strpos($sql,' '))), array('insert','update','delete','replace'))) {
 			Debug::message("Will execute: $sql");
 			return;
@@ -109,7 +142,6 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 				
-		//echo $sql . '<hr>';
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -119,7 +151,7 @@ class PostgreSQLDatabase extends Database {
 		
 		DB::$lastQuery=$handle;
 		
-		if(!$handle && $errorLevel) $this->databaseError("Couldn't run query: $sql | " . pgsql_error($this->dbConn), $errorLevel);
+		if(!$handle && $errorLevel) $this->databaseError("Couldn't run query: $sql | " . pg_last_error($this->dbConn), $errorLevel);
 				
 		return new PostgreSQLQuery($this, $handle);
 	}
@@ -146,8 +178,16 @@ class PostgreSQLDatabase extends Database {
 		return $this->active ? true : false;
 	}
 	
+	/*
+	 * This will create a database based on whatever is in the $this->database value
+	 * So you need to have called $this->selectDatabase() first, or used the __construct method
+	 */
 	public function createDatabase() {
+		
 		$this->query("CREATE DATABASE $this->database");
+		
+		$this->connectDatabase();
+		
 	}
 
 	/**
@@ -155,7 +195,13 @@ class PostgreSQLDatabase extends Database {
 	 * Use with caution.
 	 */
 	public function dropDatabase() {
-		$this->query("DROP DATABASE $this->database");
+		
+		//First, we need to switch back to the original database so we can drop the current one
+		$db_to_drop=$this->database;
+		$this->selectDatabase($this->database_original);
+		$this->connectDatabase();
+		
+		$this->query("DROP DATABASE $db_to_drop");
 	}
 	
 	/**
@@ -170,35 +216,59 @@ class PostgreSQLDatabase extends Database {
 	 * If the database doesn't exist, you should call createDatabase() after calling selectDatabase()
 	 */
 	public function selectDatabase($dbname) {
-		$this->database = $dbname;
-		if($this->databaseExists($this->database)) mysql_select_db($this->database, $this->dbConn);
+		//$this->database = $dbname;
+		//if($this->databaseExists($this->database)) mysql_select_db($this->database, $this->dbConn);
+		//if($this->databaseExists($this->database)) pg_d
+		$this->database=$dbname;
+		
 		$this->tableList = $this->fieldList = $this->indexList = null;
+				
+		return true;
 	}
 
+	
 	/**
 	 * Returns true if the named database exists.
 	 */
 	public function databaseExists($name) {
-		//TODO: fix me to test for the existance of the database
-		//For the moment, this always returns true
-		//$SQL_name = Convert::raw2sql($name);
-		//return $this->query("SHOW DATABASES LIKE '$SQL_name'")->value() ? true : false;
-		return true;
+		$SQL_name=Convert::raw2sql($name);
+		$result=$this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first();
+		return $this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first() ? true : false;
 	}
 	
 	public function createTable($tableName, $fields = null, $indexes = null, $options = null) {
 		$fieldSchemas = $indexSchemas = "";
 		if($fields) foreach($fields as $k => $v) $fieldSchemas .= "\"$k\" $v,\n";
-		$addOptions = (isset($options[$this->class])) ? $options[$this->class] : null;
+		if(isset($this->class)){
+			$addOptions = (isset($options[$this->class])) ? $options[$this->class] : null;
+		} else $addOptions=null;
 		
+		//First of all, does this table already exist
+		$doesExist=$this->TableExists($tableName);
+		if($doesExist)
+			return false;
+			
 		//If we have a fulltext search request, then we need to create a special column
 		//for GiST searches
 		$fulltexts='';
+		$triggers='';
 		foreach($indexes as $name=>$this_index){
 			if($this_index['type']=='fulltext'){
-				//For full text search, we need to create a column for the index 
-				$fulltexts .= "\"ts_$name\" tsvector, ";
 				
+				//For full text search, we need to create a column for the index
+				$columns=explode(',', $this_index['value']);
+				for($i=0; $i<sizeof($columns);$i++)
+					$columns[$i]="\"" . trim($columns[$i]) . "\"";
+
+				$columns=implode(', ', $columns);
+				
+				$fulltexts .= "\"ts_$name\" tsvector, ";
+				$triggerName="ts_{$tableName}_{$name}";
+				
+				$this->dropTrigger($triggerName, $tableName);
+				$triggers.="CREATE TRIGGER $triggerName BEFORE INSERT OR UPDATE
+							ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
+							tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
 			}
 		}
 		
@@ -209,6 +279,10 @@ class PostgreSQLDatabase extends Database {
 				$fulltexts
 				primary key (\"ID\")
 			); $indexSchemas $addOptions");
+				
+		if($triggers!=''){
+			$this->query($triggers);
+		}
 	}
 
 	/**
@@ -238,17 +312,32 @@ class PostgreSQLDatabase extends Database {
 		//see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
 		$alterIndexList=Array();
 		if($alteredIndexes) foreach($alteredIndexes as $v) {
-			if(is_array($v))
-				$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
-			else
-				$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
-						
-			$k=$v['value'];
-			$alterIndexList[] .= $this->getIndexSqlDefinition($tableName, $k, $v);
+			//We are only going to delete indexes which exist
+			$indexes=$this->indexList($tableName);
+			
+			if(isset($indexes[$v['value']])){
+				if(is_array($v))
+					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+				else
+					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
+							
+				$k=$v['value'];
+				$alterIndexList[] .= $this->getIndexSqlDefinition($tableName, $k, $v);
+			}
  		}
 
 		//Add the new indexes:
- 		if($newIndexes) foreach($newIndexes as $k=>$v){
+		if($newIndexes) foreach($newIndexes as $k=>$v){
+ 			//Check that this index doesn't already exist:
+ 			$indexes=$this->indexList($tableName);
+ 			if(isset($indexes[trim($v, '()')])){
+ 				if(is_array($v)){
+					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+				} else {
+					$alterIndexList[] = 'DROP INDEX ' . $indexes[trim($v, '()')]['indexname'] . ';';
+				}
+			}
+					
  			$alterIndexList[] = $this->getIndexSqlDefinition($tableName, $k, $v);
  		}
  		
@@ -290,7 +379,9 @@ class PostgreSQLDatabase extends Database {
 			print_r($matches);
 			echo '</pre>';
 		}*/
-		
+		if(sizeof($matches)==0)
+			return '';
+			
 		if($matches[1]=='serial8')
 			return '';
 			
@@ -384,6 +475,7 @@ class PostgreSQLDatabase extends Database {
 				case 'character varying':
 					//Check to see if there's a constraint attached to this column:
 					$constraint=$this->query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='" . $table . '_' . $field['column_name'] . "_check' ORDER BY 1;")->first();
+					$enum='';
 					if($constraint){
 						//Now we need to break this constraint text into bits so we can see what we have:
 						//Examples:
@@ -418,12 +510,15 @@ class PostgreSQLDatabase extends Database {
 							//Get the default:
 							//TODO: perhaps pass this to the enum function so we can 
 							$default=trim(substr($field['column_default'], 0, strpos($field['column_default'], '::')), "'");
-							//$field['data_type']="varchar(255) not null default '" . $default . "' check (\"" . $field['column_name'] . "\" in ('" . implode("', '", $constraints) . "'))";
-							$field['data_type']=$this->enum(Array('default'=>$default, 'name'=>$field['column_name'], 'enums'=>$constraints));		
+							$output[$field['column_name']]=$this->enum(Array('default'=>$default, 'name'=>$field['column_name'], 'enums'=>$constraints));
 						}
+					} else{
+						$output[$field['column_name']]='varchar(' . $field['character_maximum_length'] . ')';
 					}
+					break;
 					
-					$output[$field['column_name']]=$field;
+				case 'numeric':
+					$output[$field['column_name']]='numeric(' . $field['numeric_precision'] . ')';
 					break;
 				default:
 					$output[$field['column_name']] = $field;
@@ -457,8 +552,7 @@ class PostgreSQLDatabase extends Database {
 				//Here we create a db-specific version of whatever index we need to create.
 				switch($indexSpec['type']){
 					case 'fulltext':
-						//$indexSpec='fulltext (' . str_replace(' ', '', $indexSpec['value']) . ')';
-						$indexSpec='(ts_' . $indexSpec['indexName'] . ')';
+						$indexSpec='(ts_' . $indexSpec['name'] . ')';
 						break;
 					case 'unique':
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
@@ -479,46 +573,65 @@ class PostgreSQLDatabase extends Database {
 	
 	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec, $asDbValue=false) {
 	    
+		//TODO: create fill factor support and table partition support
+		//TODO: create clustering options
+		
 		if(!$asDbValue){
+			
+			$tableCol= 'ix_' . $tableName . '_' . $indexName;
+			if(strlen($tableCol)>64){
+				$tableCol=substr($indexName, 0, 59) . rand(1000, 9999);
+				//echo 'it is now ' . $tableCol . "\n\n";
+			}
+			
 			if(!is_array($indexSpec)){
 				$indexSpec=trim($indexSpec, '()');
 				$bits=explode(',', $indexSpec);
 				$indexes="\"" . implode("\",\"", $bits) . "\"";
+
+				$indexSpec=$this->indexList($tableName);
 				
-				return 'create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (" . $indexes . ");";
+				return "create index $tableCol ON \"" . $tableName . "\" (" . $indexes . ");";
 			} else {
+				
+				//Misc options first:
+				$fillfactor=$where='';;
+				if(isset($indexSpec['fillfactor']))
+					$fillfactor='WITH (FILLFACTOR = ' . $indexSpec['fillfactor'] . ')';
+				if(isset($indexSpec['where']))
+					$where='WHERE ' . $indexSpec['where'];
+					
+				//TODO: create tablespace and where clause support
+				
 				//create a type-specific index
+				//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
 				switch($indexSpec['type']){
 					case 'fulltext':
-						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING gist(\"ts_" . $indexName . "\");";
+						$spec="create index $tableCol ON \"" . $tableName . "\" USING gist(\"ts_" . $indexName . "\") $fillfactor $where";
 						break;
 						
 					case 'unique':
-						$spec='create unique index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\");";
+						$spec="create unique index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
 						break;
 						
 					case 'btree':
-						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING btree (\"" . $indexSpec['value'] . "\");";
+						$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (\"" . $indexSpec['value'] . "\") $fillfactor $where";
 						break;
 	
 					case 'hash':
-						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\");";
-						break;
-						
-					case 'rtree':
-						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" USING rtree (\"" . $indexSpec['value'] . "\");";
+						//NOTE: this is not a recommended index type
+						$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\") $fillfactor $where";
 						break;
 						
 					default:
-						$spec='create index ix_' . $tableName . '_' . $indexName . " ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\");";
+						$spec="create index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
 				}
 				
-				return $spec;
+				return trim($spec) . ';';
 	
 			}
 		} else {
 			$indexName=trim($indexName, '()');
-			
 			return $indexName;
 		}
 	}
@@ -559,6 +672,7 @@ class PostgreSQLDatabase extends Database {
   		//Retrieve a list of indexes for the specified table
 		$indexes=DB::query("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE tablename='$table';");
 		
+		$indexList=Array();
   		foreach($indexes as $index) {
   			//We don't actually need the entire created command, just a few bits:
   			$prefix='';
@@ -591,7 +705,7 @@ class PostgreSQLDatabase extends Database {
   			
   		}
 
-		return isset($indexList) ? $indexList : null;
+  		return isset($indexList) ? $indexList : null;
 		
 	}
 
@@ -602,10 +716,23 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function tableList() {
 		foreach($this->query("SELECT tablename FROM pg_tables WHERE tablename NOT ILIKE 'pg_%' AND tablename NOT ILIKE 'sql_%'") as $record) {
-			$table = strtolower(reset($record));
+			//$table = strtolower(reset($record));
+			$table = reset($record);
 			$tables[$table] = $table;
 		}
-		return isset($tables) ? $tables : null;
+		
+		//Return an empty array if there's nothing in this database
+		return isset($tables) ? $tables : Array();
+	}
+	
+	function TableExists($tableName){
+		$result=$this->query("SELECT tablename FROM pg_tables WHERE tablename='$tableName';")->first();
+		
+		if($result)
+			return true;
+		else
+			return false;
+		
 	}
 	
 	/**
@@ -629,6 +756,18 @@ class PostgreSQLDatabase extends Database {
 		}
 		
 		return $table;
+	}
+	
+	/**
+	 * Pass a legit trigger name and it will be dropped
+	 * This assumes that the trigger has been named in a unique fashion
+	 */
+	function dropTrigger($triggerName, $tableName){
+		
+		$exists=DB::query("SELECT tgname FROM pg_trigger WHERE tgname='$triggerName';")->first();
+		if($exists){
+			DB::query("DROP trigger $triggerName ON \"$tableName\";");
+		}
 	}
 	
 	/**
@@ -681,8 +820,8 @@ class PostgreSQLDatabase extends Database {
 		}
 		
 		if($asDbValue)
-			return Array('data_type'=>'numeric', 'numeric_precision'=>'9');
-		else return 'decimal(' . $precision . ') not null';
+			return Array('data_type'=>'numeric', 'precision'=>'9');
+		else return 'decimal(' . $precision . ')';
 	}
 	
 	/**
@@ -695,7 +834,7 @@ class PostgreSQLDatabase extends Database {
 		//Enums are a bit different. We'll be creating a varchar(255) with a constraint of all the usual enum options.
 		//NOTE: In this one instance, we are including the table name in the values array
 		
-		return "varchar(255) not null default '" . $values['default'] . "' check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
+		return "varchar(255) default '" . $values['default'] . "' check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
 		
 	}
 	
@@ -724,11 +863,10 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function int($values, $asDbValue=false){
 		//We'll be using an 8 digit precision to keep it in line with the serial8 datatype for ID columns
-		
 		if($asDbValue)
-			return Array('data_type'=>'numeric', 'numeric_precision'=>'8');
+			return Array('data_type'=>'numeric', 'precision'=>$values['precision']);
 		else
-			return 'numeric(8) not null default ' . (int)$values['default'];
+			return 'numeric(11) not null default ' . (int)$values['default'];
 	}
 	
 	/**
@@ -791,8 +929,11 @@ class PostgreSQLDatabase extends Database {
 		//For reference, this is what typically gets passed to this function:
 		//$parts=Array('datatype'=>'varchar', 'precision'=>$this->size, 'character set'=>'utf8', 'collate'=>'utf8_general_ci');
 		//DB::requireField($this->tableName, $this->name, "varchar($this->size) character set utf8 collate utf8_general_ci");
+		if(!isset($values['precision']))
+			$values['precision']=255;
+			
 		if($asDbValue)
-			return Array('data_type'=>'character varying', 'character_maximum_length'=>'255');
+			return Array('data_type'=>'varchar', 'precision'=>$values['precision']);
 		else
 			return 'varchar(' . $values['precision'] . ')';
 	}
@@ -802,7 +943,7 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function year($values, $asDbValue=false){
 		if($asDbValue)
-			return Array('data_type'=>'numeric', 'numeric_precision'=>'4');
+			return Array('data_type'=>'numeric', 'precision'=>'4');
 		else return 'numeric(4)'; 
 	}
 	
@@ -870,6 +1011,13 @@ class PostgreSQLDatabase extends Database {
 		return 'NOW()';
 	}
 	
+	/*
+	 * Returns the database-specific version of the random() function
+	 */
+	function random(){
+		return 'RANDOM()';
+	}
+	
 	/**
 	 * Convert a SQLQuery object into a SQL statement
 	 * @todo There is a lot of duplication between this and MySQLDatabase::sqlQueryToString().  Perhaps they could both call a common
@@ -906,7 +1054,8 @@ class PostgreSQLDatabase extends Database {
 				if(!empty($combinedLimit)) $this->limit = $combinedLimit;
 
 			} else {
-				$text .= " LIMIT " . $sqlQuery->limit;
+				$limit=str_replace(',', ' OFFSET ',  $sqlQuery->limit);
+				$text .= " LIMIT " . $limit;
 			}
 		}
 		
@@ -932,6 +1081,95 @@ class PostgreSQLDatabase extends Database {
 		else
 			return str_replace('_', ',', $index);
 
+	}
+	
+	/**
+	 * The core search engine configuration.
+	 * @todo There is no result relevancy or ordering as it currently stands.
+	 * 
+	 * @param string $keywords Keywords as a space separated string
+	 * @return object DataObjectSet of result pages
+	 */
+	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "Relevance DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
+		
+		$keywords = Convert::raw2sql(trim($keywords));
+		$htmlEntityKeywords = htmlentities($keywords);
+		
+		/*$keywordList = explode(' ', $keywords);
+		if($keywordList) {
+			foreach($keywordList as $index => $keyword) {
+				$keywordList[$index] = "'{$keyword}'";
+			}
+			$keywords = implode(' AND ', $keywordList);
+		}*/
+		
+		/*$htmlEntityKeywordList = explode(' ', $htmlEntityKeywords);
+		if($htmlEntityKeywordList) {
+			foreach($htmlEntityKeywordList as $index => $keyword) {
+				$htmlEntityKeywordList[$index] = "\"{$keyword}\"";
+			}
+			$htmlEntityKeywords = implode(' AND ', $htmlEntityKeywordList);
+		}*/
+		
+		//We can get a list of all the tsvector columns though this query:
+		$result=DB::query("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE data_type='tsvector';");
+		
+		if (!$result->numRecords()) throw Exception('there are no full text columns to search');
+		
+		$tables=Array();
+		
+		foreach($result as $row){
+			
+			if(substr($row['table_name'], -5)!='_Live' && substr($row['table_name'], -9)!='_versions') {
+				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" @@@ q ";
+				$tables[] = $thisSql;
+			}
+		}
+		
+		$doSet=new DataObjectSet();
+		
+		$sortBy='ts_rank';
+		$limit=10;
+		$fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 ORDER BY $sortBy LIMIT $limit";
+		$totalCount=1;
+		// Get records
+		$records = DB::query($fullQuery);
+
+		foreach($records as $record){
+			$item=DB::query("SELECT * FROM \"{$record['classname']}\" WHERE \"ID\"={$record['ID']};")->first();
+			$objects[] = new $record['classname']($item);
+		}
+		if(isset($objects)) $doSet = new DataObjectSet($objects);
+		else $doSet = new DataObjectSet();
+		
+		$doSet->setPageLimits($start, $pageLength, $totalCount);
+		
+		
+		//$resultRows=Array();
+		//Right, now we go and run each of these queries and take their rank and put them into an array accordinaly
+		//$totalCount=0;
+		//foreach($tables as $sql){
+		//	$result=DB::query($sql);
+		//	foreach($result as $row){
+		//		
+		//		$resultRows[$row['ts_rank']][]=Array('ID'=>$row['ID'], 'Table'=>$row['source']);
+		//		$totalCount++;
+		//	}
+		//}
+		
+		//Now we populate the dataobject with the results in order of relevance:
+		/*foreach($resultRows as $row_array){
+			foreach($row_array as $row){
+				$item=DataObject::get_by_id($row['Table'], $row['ID']);
+				
+				$searchResults->push($item);
+			}
+		}
+		
+		/*$searchResults->setPageLimits($start, $pageLength, $totalCount);*/
+		
+		return $doSet;
+		
 	}
 }
 
@@ -961,17 +1199,14 @@ class PostgreSQLQuery extends Query {
 	public function __construct(PostgreSQLDatabase $database, $handle) {
 		$this->database = $database;
 		$this->handle = $handle;
-		parent::__construct();
 	}
 	
 	public function __destroy() {
-		//mysql_free_result($this->handle);
+		pg_free_result($this->handle);
 	}
 	
 	public function seek($row) {
-		//return mysql_data_seek($this->handle, $row);
-		//This is unnecessary in postgres.  You can just provide a row number with the fetch
-		//command.
+		return pg_result_seek($this-handle, $row);
 	}
 	
 	public function numRecords() {
