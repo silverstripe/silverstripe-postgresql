@@ -141,7 +141,7 @@ class PostgreSQLDatabase extends Database {
 		if(isset($_REQUEST['showqueries'])) { 
 			$starttime = microtime(true);
 		}
-				
+
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -573,7 +573,7 @@ class PostgreSQLDatabase extends Database {
 	
 	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec, $asDbValue=false) {
 	    
-		//TODO: create fill factor support and table partition support
+		//TODO: create table partition support
 		//TODO: create clustering options
 		
 		if(!$asDbValue){
@@ -699,7 +699,8 @@ class PostgreSQLDatabase extends Database {
 	  				$value[1].=$value[$i];
   			}
   			
-  			$key=trim(trim(str_replace("\"", '', $value[1])), '()');
+  			$key=substr($value[1], 0, strpos($value[1], ')'));
+  			$key=trim(trim(str_replace("\"", '', $key), '()'));
   			$indexList[$key]['indexname']=$index['indexname'];
   			$indexList[$key]['spec']=$prefix . '(' . $key . ')';
   			
