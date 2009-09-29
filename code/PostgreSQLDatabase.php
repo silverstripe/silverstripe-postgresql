@@ -36,7 +36,21 @@ class PostgreSQLDatabase extends Database {
 	 */
 	private $database_original;
 	
+	/*
+	 * This holds the parameters that the original connection was created with,
+	 * so we can switch back to it if necessary (used for unit tests)
+	 */
 	private $parameters;
+	
+	/*
+	 * These two values describe how T-search will work.
+	 * You can use either GiST or GIN, and '@@' (gist) or '@@@' (gin)
+	 * Combinations of these two will also work, so you'll need to pick
+	 * one which works best for you
+	 */
+	public $default_fts_cluster_method='GIN';
+	public $default_fts_search_method='@@@';
+	
 	
 	/**
 	 * Connect to a PostgreSQL database.
@@ -252,26 +266,27 @@ class PostgreSQLDatabase extends Database {
 		//for GiST searches
 		$fulltexts='';
 		$triggers='';
-		foreach($indexes as $name=>$this_index){
-			if($this_index['type']=='fulltext'){
-				
-				//For full text search, we need to create a column for the index
-				$columns=explode(',', $this_index['value']);
-				for($i=0; $i<sizeof($columns);$i++)
-					$columns[$i]="\"" . trim($columns[$i]) . "\"";
-
-				$columns=implode(', ', $columns);
-				
-				$fulltexts .= "\"ts_$name\" tsvector, ";
-				$triggerName="ts_{$tableName}_{$name}";
-				
-				$this->dropTrigger($triggerName, $tableName);
-				$triggers.="CREATE TRIGGER $triggerName BEFORE INSERT OR UPDATE
-							ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
-							tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
+		if($indexes){
+			foreach($indexes as $name=>$this_index){
+				if($this_index['type']=='fulltext'){
+					
+					//For full text search, we need to create a column for the index
+					$columns=explode(',', $this_index['value']);
+					for($i=0; $i<sizeof($columns);$i++)
+						$columns[$i]="\"" . trim($columns[$i]) . "\"";
+	
+					$columns=implode(', ', $columns);
+					
+					$fulltexts .= "\"ts_$name\" tsvector, ";
+					$triggerName="ts_{$tableName}_{$name}";
+					
+					$this->dropTrigger($triggerName, $tableName);
+					$triggers.="CREATE TRIGGER $triggerName BEFORE INSERT OR UPDATE
+								ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
+								tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
+				}
 			}
 		}
-		
 		if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($tableName, $k, $v) . "\n";
 		
 		$this->query("CREATE TABLE \"$tableName\" (
@@ -283,6 +298,8 @@ class PostgreSQLDatabase extends Database {
 		if($triggers!=''){
 			$this->query($triggers);
 		}
+		
+		return $tableName;
 	}
 
 	/**
@@ -412,27 +429,23 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	/**
-	 * Checks a table's integrity and repairs it if necessary.
+	 * Repairs and reindexes the table.  This might take a long time on a very large table.
 	 * @var string $tableName The name of the table.
 	 * @return boolean Return true if the table has integrity after the method is complete.
 	 */
 	public function checkAndRepairTable($tableName) {
-		$this->runTableCheckCommand("VACUUM FULL \"$tableName\"");
+		$this->runTableCheckCommand("VACUUM FULL ANALYZE \"$tableName\"");
+		$this->runTableChechCommand("REINDEX TABLE \"$tableName\"");
 		return true;
 	}
 	
 	/**
 	 * Helper function used by checkAndRepairTable.
 	 * @param string $sql Query to run.
-	 * @return boolean Returns if the query returns a successful result.
+	 * @return boolean Returns true no matter what; we're not currently checking the status of the command
 	 */
 	protected function runTableCheckCommand($sql) {
 		$testResults = $this->query($sql);
-		foreach($testResults as $testRecord) {
-			if(strtolower($testRecord['Msg_text']) != 'ok') {
-				return false;
-			}
-		}
 		return true;
 	}
 	
@@ -783,8 +796,15 @@ class PostgreSQLDatabase extends Database {
 		
 		if($asDbValue)
 			return Array('data_type'=>'smallint');
-		else
-			return 'smallint not null default ' . $default;
+		else {
+			if($values['arrayValue']!='')
+				$default='';
+			else
+				$default=' default ' . (int)$values['default'];
+				
+			return "smallint{$values['arrayValue']}" . $default;
+			
+		}
 	}
 	
 	/**
@@ -799,7 +819,7 @@ class PostgreSQLDatabase extends Database {
 		//$parts=Array('datatype'=>'date');
 		//DB::requireField($this->tableName, $this->name, "date");
 
-		return 'date';
+		return "date{$values['arrayValue']}";
 	}
 	
 	/**
@@ -822,7 +842,7 @@ class PostgreSQLDatabase extends Database {
 		
 		if($asDbValue)
 			return Array('data_type'=>'numeric', 'precision'=>'9');
-		else return 'decimal(' . $precision . ')';
+		else return "decimal($precision){$values['arrayValue']}";
 	}
 	
 	/**
@@ -834,8 +854,15 @@ class PostgreSQLDatabase extends Database {
 	public function enum($values){
 		//Enums are a bit different. We'll be creating a varchar(255) with a constraint of all the usual enum options.
 		//NOTE: In this one instance, we are including the table name in the values array
-		
-		return "varchar(255) default '" . $values['default'] . "' check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
+		if($values['arrayValue']!='')
+			$default='';
+		else
+			$default=" default '{$values['default']}'";
+			
+		return "varchar(255){$values['arrayValue']}" . $default . " check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
 		
 	}
 	
@@ -853,7 +880,7 @@ class PostgreSQLDatabase extends Database {
 		
 		if($asDbValue)
 			return Array('data_type'=>'double precision');
-		else return 'float';
+		else return "float{$values['arrayValue']}";
 	}
 	
 	/**
@@ -863,11 +890,16 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function int($values, $asDbValue=false){
-		//We'll be using an 8 digit precision to keep it in line with the serial8 datatype for ID columns
 		if($asDbValue)
 			return Array('data_type'=>'numeric', 'precision'=>$values['precision']);
-		else
-			return 'numeric(11) not null default ' . (int)$values['default'];
+		else {
+			if($values['arrayValue']!='')
+				$default='';
+			else
+				$default=' default ' . (int)$values['default'];
+		
+			return "numeric(11){$values['arrayValue']}" . $default;
+		}
 	}
 	
 	/**
@@ -885,7 +917,7 @@ class PostgreSQLDatabase extends Database {
 		if($asDbValue)
 			return Array('data_type'=>'timestamp without time zone');
 		else
-			return 'timestamp';
+			return "timestamp{$values['arrayValue']}";
 	}
 	
 	/**
@@ -902,7 +934,7 @@ class PostgreSQLDatabase extends Database {
 		if($asDbValue)
 			return Array('data_type'=>'text');
 		else
-			return 'text';
+			return "text{$values['arrayValue']}";
 	}
 	
 	/**
@@ -917,7 +949,7 @@ class PostgreSQLDatabase extends Database {
 		//$parts=Array('datatype'=>'time');
 		//DB::requireField($this->tableName, $this->name, "time");
 		
-		return 'time';
+		return "time{$values['arrayValue']}";
 	}
 	
 	/**
@@ -936,7 +968,7 @@ class PostgreSQLDatabase extends Database {
 		if($asDbValue)
 			return Array('data_type'=>'varchar', 'precision'=>$values['precision']);
 		else
-			return 'varchar(' . $values['precision'] . ')';
+			return "varchar({$values['precision']}){$values['arrayValue']}";
 	}
 	
 	/*
@@ -945,7 +977,7 @@ class PostgreSQLDatabase extends Database {
 	public function year($values, $asDbValue=false){
 		if($asDbValue)
 			return Array('data_type'=>'numeric', 'precision'=>'4');
-		else return 'numeric(4)'; 
+		else return "numeric(4){$values['arrayValue']}"; 
 	}
 	
 	function escape_character($escape=false){
@@ -1055,8 +1087,12 @@ class PostgreSQLDatabase extends Database {
 				if(!empty($combinedLimit)) $this->limit = $combinedLimit;
 
 			} else {
-				$limit=str_replace(',', ' OFFSET ',  $sqlQuery->limit);
-				$text .= " LIMIT " . $limit;
+				if(strpos($sqlQuery->limit, ',')){
+					$limit=str_replace(',', ' LIMIT ',  $sqlQuery->limit);
+					$text .= ' OFFSET ' . $limit;
+				} else {
+					$text.=' LIMIT ' . $sqlQuery->limit;
+				}
 			}
 		}
 		
