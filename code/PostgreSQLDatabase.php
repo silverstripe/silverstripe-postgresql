@@ -620,7 +620,7 @@ class PostgreSQLDatabase extends Database {
 				//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
 				switch($indexSpec['type']){
 					case 'fulltext':
-						$spec="create index $tableCol ON \"" . $tableName . "\" USING gist(\"ts_" . $indexName . "\") $fillfactor $where";
+						$spec="create index $tableCol ON \"" . $tableName . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $indexName . "\") $fillfactor $where";
 						break;
 						
 					case 'unique':
@@ -992,13 +992,13 @@ class PostgreSQLDatabase extends Database {
 	 *
 	 * @param array $spec
 	 */
-	function fulltext($table, $spec){
+	/*function fulltext($table, $spec){
 		//$spec['name'] is the column we've created that holds all the words we want to index.
 		//This is a coalesced collection of multiple columns if necessary
-		$spec='create index ix_' . $table . '_' . $spec['name'] . ' on ' . $table . ' using gist(' . $spec['name'] . ');';
+		$spec='create index ix_' . $table . '_' . $spec['name'] . ' on ' . $table . ' using ' . $this->default_fts_cluster_method . '(' . $spec['name'] . ');';
 		
 		return $spec;
-	}
+	}*/
 	
 	/**
 	 * This returns the column which is the primary key for each table
@@ -1158,7 +1158,7 @@ class PostgreSQLDatabase extends Database {
 		foreach($result as $row){
 			
 			if(substr($row['table_name'], -5)!='_Live' && substr($row['table_name'], -9)!='_versions') {
-				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" @@@ q ";
+				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" " .  $this->default_fts_search_method . " q ";
 				$tables[] = $thisSql;
 			}
 		}
