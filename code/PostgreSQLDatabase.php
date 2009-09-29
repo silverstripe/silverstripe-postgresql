@@ -435,7 +435,7 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function checkAndRepairTable($tableName) {
 		$this->runTableCheckCommand("VACUUM FULL ANALYZE \"$tableName\"");
-		$this->runTableChechCommand("REINDEX TABLE \"$tableName\"");
+		$this->runTableCheckCommand("REINDEX TABLE \"$tableName\"");
 		return true;
 	}
 	
