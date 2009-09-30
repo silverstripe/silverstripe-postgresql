@@ -156,7 +156,6 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 
-		echo $sql . "<br><br>\n\n";
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -1072,13 +1071,6 @@ class PostgreSQLDatabase extends Database {
 		if($sqlQuery->having) $text .= " HAVING ( " . implode(" ) AND ( ", $sqlQuery->having) . " )";
 		if($sqlQuery->orderby) $text .= " ORDER BY " . $sqlQuery->orderby;
 
-		echo 'limit: <pre>';
-		print_r($sqlQuery->limit);
-		echo '</pre>';
-		echo 'order by:<pre>';
-		print_r($sqlQuery->orderby);
-		echo '</pre>';
-		
 		if($sqlQuery->limit) {
 			$limit = $sqlQuery->limit;
 			// Pass limit as array or SQL string value
