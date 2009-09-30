@@ -156,7 +156,6 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 
-		echo $sql . "\n";
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -216,7 +215,7 @@ class PostgreSQLDatabase extends Database {
 		$this->selectDatabase($this->database_original);
 		$this->connectDatabase();
 		
-		//$this->query("DROP DATABASE $db_to_drop");
+		$this->query("DROP DATABASE $db_to_drop");
 	}
 	
 	/**
