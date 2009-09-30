@@ -156,6 +156,7 @@ class PostgreSQLDatabase extends Database {
 			$starttime = microtime(true);
 		}
 
+		echo $sql . "\n";
 		$handle = pg_query($this->dbConn, $sql);
 		
 		if(isset($_REQUEST['showqueries'])) {
@@ -215,7 +216,7 @@ class PostgreSQLDatabase extends Database {
 		$this->selectDatabase($this->database_original);
 		$this->connectDatabase();
 		
-		$this->query("DROP DATABASE $db_to_drop");
+		//$this->query("DROP DATABASE $db_to_drop");
 	}
 	
 	/**
@@ -1127,83 +1128,139 @@ class PostgreSQLDatabase extends Database {
 	 * @param string $keywords Keywords as a space separated string
 	 * @return object DataObjectSet of result pages
 	 */
-	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "Relevance DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
+	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
+		/*
+		$fileFilter = '';	 	
+	 	$keywords = Convert::raw2sql($keywords);
+		$htmlEntityKeywords = htmlentities($keywords);
 		
+		$extraFilters = array('SiteTree' => '', 'File' => '');
+	 	
+	 	//if($booleanSearch) $boolean = "IN BOOLEAN MODE";
+		$boolean='';
+		
+	 	if($extraFilter) {
+	 		$extraFilters['SiteTree'] = " AND $extraFilter";
+	 		
+	 		if($alternativeFileFilter) $extraFilters['File'] = " AND $alternativeFileFilter";
+	 		else $extraFilters['File'] = $extraFilters['SiteTree'];
+	 	}
+	 	
+		// Always ensure that only pages with ShowInSearch = 1 can be searched
+		$extraFilters['SiteTree'] .= " AND ShowInSearch <> 0";
+
+		$limit = $start . ", " . (int) $pageLength;
+		
+		$notMatch = $invertedMatch ? "NOT " : "";
+		if($keywords) {
+			
+			$match['SiteTree'] = "
+				MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$keywords' $boolean)
+				+ MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$htmlEntityKeywords' $boolean)
+			";
+			$match['File'] = "MATCH (Filename, Title, Content) AGAINST ('$keywords' $boolean) AND ClassName = 'File'";
+	
+			// We make the relevance search by converting a boolean mode search into a normal one
+			$relevanceKeywords = str_replace(array('*','+','-'),'',$keywords);
+			$htmlEntityRelevanceKeywords = str_replace(array('*','+','-'),'',$htmlEntityKeywords);
+			$relevance['SiteTree'] = "MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$relevanceKeywords') + MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$htmlEntityRelevanceKeywords')";
+			$relevance['File'] = "MATCH (Filename, Title, Content) AGAINST ('$relevanceKeywords')";
+		} else {
+			$relevance['SiteTree'] = $relevance['File'] = 1;
+			$match['SiteTree'] = $match['File'] = "1 = 1";
+		}
+
+		// Generate initial queries and base table names
+		$baseClasses = array('SiteTree' => '', 'File' => '');
+		foreach($classesToSearch as $class) {
+			$queries[$class] = singleton($class)->extendedSQL($notMatch . $match[$class] . $extraFilters[$class], "");
+			$baseClasses[$class] = reset($queries[$class]->from);
+		}
+		
+		// Make column selection lists
+		$select = array(
+			'SiteTree' => array("ClassName","$baseClasses[SiteTree].ID","ParentID","Title","URLSegment","Content","LastEdited","Created","_utf8'' AS Filename", "_utf8'' AS Name", "$relevance[SiteTree] AS Relevance", "CanViewType"),
+			'File' => array("ClassName","$baseClasses[File].ID","_utf8'' AS ParentID","Title","_utf8'' AS URLSegment","Content","LastEdited","Created","Filename","Name","$relevance[File] AS Relevance","NULL AS CanViewType"),
+		);
+		
+		// Process queries
+		foreach($classesToSearch as $class) {
+			// There's no need to do all that joining
+			$queries[$class]->from = array(str_replace('`','',$baseClasses[$class]) => $baseClasses[$class]);
+			$queries[$class]->select = $select[$class];
+			$queries[$class]->orderby = null;
+		}
+
+		// Combine queries
+		$querySQLs = array();
+		$totalCount = 0;
+		foreach($queries as $query) {
+			$querySQLs[] = $query->sql();
+			$totalCount += $query->unlimitedRowCount();
+		}
+		$fullQuery = implode(" UNION ", $querySQLs) . " ORDER BY $sortBy LIMIT $limit";
+		
+		// Get records
+		$records = DB::query($fullQuery);
+
+		foreach($records as $record)
+			$objects[] = new $record['ClassName']($record);
+		
+		if(isset($objects)) $doSet = new DataObjectSet($objects);
+		else $doSet = new DataObjectSet();
+		
+		$doSet->setPageLimits($start, $pageLength, $totalCount);
+		return $doSet;
+*/
 		$keywords = Convert::raw2sql(trim($keywords));
 		$htmlEntityKeywords = htmlentities($keywords);
 		
-		/*$keywordList = explode(' ', $keywords);
-		if($keywordList) {
-			foreach($keywordList as $index => $keyword) {
-				$keywordList[$index] = "'{$keyword}'";
-			}
-			$keywords = implode(' AND ', $keywordList);
-		}*/
-		
-		/*$htmlEntityKeywordList = explode(' ', $htmlEntityKeywords);
-		if($htmlEntityKeywordList) {
-			foreach($htmlEntityKeywordList as $index => $keyword) {
-				$htmlEntityKeywordList[$index] = "\"{$keyword}\"";
-			}
-			$htmlEntityKeywords = implode(' AND ', $htmlEntityKeywordList);
-		}*/
-		
 		//We can get a list of all the tsvector columns though this query:
-		$result=DB::query("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE data_type='tsvector';");
-		
+		//We know what tables to search in based on the $classesToSearch variable:
+		$result=DB::query("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE data_type='tsvector' AND table_name in ('" . implode("', '", $classesToSearch) . "');");
 		if (!$result->numRecords()) throw Exception('there are no full text columns to search');
 		
 		$tables=Array();
 		
 		foreach($result as $row){
-			
-			if(substr($row['table_name'], -5)!='_Live' && substr($row['table_name'], -9)!='_versions') {
-				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" " .  $this->default_fts_search_method . " q ";
-				$tables[] = $thisSql;
+			if($row['table_name']=='SiteTree')
+				$showInSearch="AND \"ShowInSearch\"=1 ";
+			else
+				$showInSearch='';
+				
+			if($keywords){
+				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) AS Relevance FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" " .  $this->default_fts_search_method . " q $showInSearch";
+			} else {
+				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName FROM \"{$row['table_name']}\" WHERE 1=1 $showInSearch";
 			}
+			
+			//Add this query to the collection
+			$tables[] = $thisSql;
 		}
-		
 		$doSet=new DataObjectSet();
 		
-		$sortBy='ts_rank';
-		$limit=10;
-		$fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 ORDER BY $sortBy LIMIT $limit";
-		$totalCount=1;
+		$limit=$pageLength;
+		$offset=$start;
+		
+		if($keywords)
+			$orderBy=" ORDER BY $sortBy";
+		else $orderBy='';
+		
+		$fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
+		
 		// Get records
 		$records = DB::query($fullQuery);
-
+		$totalCount=0;
 		foreach($records as $record){
 			$item=DB::query("SELECT * FROM \"{$record['classname']}\" WHERE \"ID\"={$record['ID']};")->first();
 			$objects[] = new $record['classname']($item);
+			$totalCount++;
 		}
+		
 		if(isset($objects)) $doSet = new DataObjectSet($objects);
 		else $doSet = new DataObjectSet();
 		
 		$doSet->setPageLimits($start, $pageLength, $totalCount);
-		
-		
-		//$resultRows=Array();
-		//Right, now we go and run each of these queries and take their rank and put them into an array accordinaly
-		//$totalCount=0;
-		//foreach($tables as $sql){
-		//	$result=DB::query($sql);
-		//	foreach($result as $row){
-		//		
-		//		$resultRows[$row['ts_rank']][]=Array('ID'=>$row['ID'], 'Table'=>$row['source']);
-		//		$totalCount++;
-		//	}
-		//}
-		
-		//Now we populate the dataobject with the results in order of relevance:
-		/*foreach($resultRows as $row_array){
-			foreach($row_array as $row){
-				$item=DataObject::get_by_id($row['Table'], $row['ID']);
-				
-				$searchResults->push($item);
-			}
-		}
-		
-		/*$searchResults->setPageLimits($start, $pageLength, $totalCount);*/
 		
 		return $doSet;
 		
