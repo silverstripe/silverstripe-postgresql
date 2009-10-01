@@ -51,6 +51,7 @@ class PostgreSQLDatabase extends Database {
 	public $default_fts_cluster_method='GIN';
 	public $default_fts_search_method='@@@';
 	
+	private $supportsTransactions=true;
 	
 	/**
 	 * Connect to a PostgreSQL database.
@@ -891,14 +892,14 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function int($values, $asDbValue=false){
 		if($asDbValue)
-			return Array('data_type'=>'numeric', 'precision'=>$values['precision']);
+			return Array('data_type'=>'integer', 'precision'=>$values['precision']);
 		else {
 			if($values['arrayValue']!='')
 				$default='';
 			else
 				$default=' default ' . (int)$values['default'];
 		
-			return "numeric(11){$values['arrayValue']}" . $default;
+			return "integer{$values['arrayValue']}" . $default;
 		}
 	}
 	
@@ -1024,7 +1025,7 @@ class PostgreSQLDatabase extends Database {
 	 * Returns the SQL command to get all the tables in this database
 	 */
 	function allTablesSQL(){
-		return "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE';";
+		return "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';";
 	}
 	
 	/**
@@ -1123,89 +1124,7 @@ class PostgreSQLDatabase extends Database {
 	 * @return object DataObjectSet of result pages
 	 */
 	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
-		/*
-		$fileFilter = '';	 	
-	 	$keywords = Convert::raw2sql($keywords);
-		$htmlEntityKeywords = htmlentities($keywords);
 		
-		$extraFilters = array('SiteTree' => '', 'File' => '');
-	 	
-	 	//if($booleanSearch) $boolean = "IN BOOLEAN MODE";
-		$boolean='';
-		
-	 	if($extraFilter) {
-	 		$extraFilters['SiteTree'] = " AND $extraFilter";
-	 		
-	 		if($alternativeFileFilter) $extraFilters['File'] = " AND $alternativeFileFilter";
-	 		else $extraFilters['File'] = $extraFilters['SiteTree'];
-	 	}
-	 	
-		// Always ensure that only pages with ShowInSearch = 1 can be searched
-		$extraFilters['SiteTree'] .= " AND ShowInSearch <> 0";
-
-		$limit = $start . ", " . (int) $pageLength;
-		
-		$notMatch = $invertedMatch ? "NOT " : "";
-		if($keywords) {
-			
-			$match['SiteTree'] = "
-				MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$keywords' $boolean)
-				+ MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$htmlEntityKeywords' $boolean)
-			";
-			$match['File'] = "MATCH (Filename, Title, Content) AGAINST ('$keywords' $boolean) AND ClassName = 'File'";
-	
-			// We make the relevance search by converting a boolean mode search into a normal one
-			$relevanceKeywords = str_replace(array('*','+','-'),'',$keywords);
-			$htmlEntityRelevanceKeywords = str_replace(array('*','+','-'),'',$htmlEntityKeywords);
-			$relevance['SiteTree'] = "MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$relevanceKeywords') + MATCH (Title, MenuTitle, Content, MetaTitle, MetaDescription, MetaKeywords) AGAINST ('$htmlEntityRelevanceKeywords')";
-			$relevance['File'] = "MATCH (Filename, Title, Content) AGAINST ('$relevanceKeywords')";
-		} else {
-			$relevance['SiteTree'] = $relevance['File'] = 1;
-			$match['SiteTree'] = $match['File'] = "1 = 1";
-		}
-
-		// Generate initial queries and base table names
-		$baseClasses = array('SiteTree' => '', 'File' => '');
-		foreach($classesToSearch as $class) {
-			$queries[$class] = singleton($class)->extendedSQL($notMatch . $match[$class] . $extraFilters[$class], "");
-			$baseClasses[$class] = reset($queries[$class]->from);
-		}
-		
-		// Make column selection lists
-		$select = array(
-			'SiteTree' => array("ClassName","$baseClasses[SiteTree].ID","ParentID","Title","URLSegment","Content","LastEdited","Created","_utf8'' AS Filename", "_utf8'' AS Name", "$relevance[SiteTree] AS Relevance", "CanViewType"),
-			'File' => array("ClassName","$baseClasses[File].ID","_utf8'' AS ParentID","Title","_utf8'' AS URLSegment","Content","LastEdited","Created","Filename","Name","$relevance[File] AS Relevance","NULL AS CanViewType"),
-		);
-		
-		// Process queries
-		foreach($classesToSearch as $class) {
-			// There's no need to do all that joining
-			$queries[$class]->from = array(str_replace('`','',$baseClasses[$class]) => $baseClasses[$class]);
-			$queries[$class]->select = $select[$class];
-			$queries[$class]->orderby = null;
-		}
-
-		// Combine queries
-		$querySQLs = array();
-		$totalCount = 0;
-		foreach($queries as $query) {
-			$querySQLs[] = $query->sql();
-			$totalCount += $query->unlimitedRowCount();
-		}
-		$fullQuery = implode(" UNION ", $querySQLs) . " ORDER BY $sortBy LIMIT $limit";
-		
-		// Get records
-		$records = DB::query($fullQuery);
-
-		foreach($records as $record)
-			$objects[] = new $record['ClassName']($record);
-		
-		if(isset($objects)) $doSet = new DataObjectSet($objects);
-		else $doSet = new DataObjectSet();
-		
-		$doSet->setPageLimits($start, $pageLength, $totalCount);
-		return $doSet;
-*/
 		$keywords = Convert::raw2sql(trim($keywords));
 		$htmlEntityKeywords = htmlentities($keywords);
 		
@@ -1258,6 +1177,53 @@ class PostgreSQLDatabase extends Database {
 		
 		return $doSet;
 		
+	}
+	
+	/*
+	 * Does this database support transactions?
+	 */
+	public function supportsTransactions(){
+		return $this->supportsTransactions;
+	}
+	/*
+	 * Start a prepared transaction
+	 * See http://developer.postgresql.org/pgdocs/postgres/sql-set-transaction.html for details on transaction isolation options
+	 */
+	public function startTransaction($transaction_mode=false, $session_characteristics=false){
+		DB::query('BEGIN;');
+
+		if($transaction_mode)
+			DB::query('SET TRANSACTION ' . $transaction_mode . ';');
+		
+		if($session_characteristics)
+			DB::query('SET SESSION CHARACTERISTICS AS TRANSACTION ' . $session_characteristics . ';');
+	}
+	
+	/*
+	 * Create a savepoint that you can jump back to if you encounter problems
+	 */
+	public function transactionSavepoint($savepoint){
+		DB::query("SAVEPOINT $savepoint;");
+	}
+	
+	/*
+	 * Rollback or revert to a savepoint if your queries encounter problems
+	 * If you encounter a problem at any point during a transaction, you may
+	 * need to rollback that particular query, or return to a savepoint
+	 */
+	public function transactionRollback($savepoint=false){
+		
+		if($savepoint)
+			DB::query("ROLLBACK TO $savepoint;");
+		else
+			DB::query('ROLLBACK;');
+	}
+	
+	/*
+	 * Commit everything inside this transaction so far
+	 */
+	public function endTransaction(){
+		DB::query('COMMIT;');
 	}
 }
 
