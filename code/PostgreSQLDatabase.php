@@ -1074,12 +1074,13 @@ class PostgreSQLDatabase extends Database {
 
 		if($sqlQuery->limit) {
 			$limit = $sqlQuery->limit;
+			
 			// Pass limit as array or SQL string value
 			if(is_array($limit)) {
 				
-				if(isset($limit['start']))
+				if(isset($limit['start']) && $limit['start']!='')
 					$text.=' OFFSET ' . $limit['start'];	
-				if(isset($limit['limit']))
+				if(isset($limit['limit']) && $limit['limit']!='')
 					$text.=' LIMIT ' . $limit['limit'];
 				
 			} else {
