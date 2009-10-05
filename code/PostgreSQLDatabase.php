@@ -522,7 +522,6 @@ class PostgreSQLDatabase extends Database {
 						
 						if(sizeof($constraints)>0){
 							//Get the default:
-							//TODO: perhaps pass this to the enum function so we can 
 							$default=trim(substr($field['column_default'], 0, strpos($field['column_default'], '::')), "'");
 							$output[$field['column_name']]=$this->enum(Array('default'=>$default, 'name'=>$field['column_name'], 'enums'=>$constraints));
 						}
@@ -533,6 +532,10 @@ class PostgreSQLDatabase extends Database {
 					
 				case 'numeric':
 					$output[$field['column_name']]='numeric(' . $field['numeric_precision'] . ')';
+					break;
+					
+				case 'integer':
+					$output[$field['column_name']]='integer(' . $field['numeric_precision'] . ')';
 					break;
 				default:
 					$output[$field['column_name']] = $field;
@@ -595,9 +598,9 @@ class PostgreSQLDatabase extends Database {
 			$tableCol= 'ix_' . $tableName . '_' . $indexName;
 			if(strlen($tableCol)>64){
 				$tableCol=substr($indexName, 0, 59) . rand(1000, 9999);
-				//echo 'it is now ' . $tableCol . "\n\n";
 			}
 			
+			//It is possible to specify indexes through strings: 
 			if(!is_array($indexSpec)){
 				$indexSpec=trim($indexSpec, '()');
 				$bits=explode(',', $indexSpec);
@@ -608,15 +611,15 @@ class PostgreSQLDatabase extends Database {
 				return "create index $tableCol ON \"" . $tableName . "\" (" . $indexes . ");";
 			} else {
 				
+				//Arrays offer much more flexibility and many more options:
+				
 				//Misc options first:
-				$fillfactor=$where='';;
+				$fillfactor=$where='';
 				if(isset($indexSpec['fillfactor']))
 					$fillfactor='WITH (FILLFACTOR = ' . $indexSpec['fillfactor'] . ')';
 				if(isset($indexSpec['where']))
 					$where='WHERE ' . $indexSpec['where'];
 					
-				//TODO: create tablespace and where clause support
-				
 				//create a type-specific index
 				//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
 				switch($indexSpec['type']){
@@ -637,6 +640,8 @@ class PostgreSQLDatabase extends Database {
 						$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\") $fillfactor $where";
 						break;
 						
+					case 'index':
+						//'index' is the same as default, just a normal index with the default type decided by the database.
 					default:
 						$spec="create index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
 				}
@@ -795,6 +800,9 @@ class PostgreSQLDatabase extends Database {
 		//Annoyingly, we need to do a good ol' fashioned switch here:
 		($values['default']) ? $default='1' : $default='0';
 		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		if($asDbValue)
 			return Array('data_type'=>'smallint');
 		else {
@@ -816,10 +824,10 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function date($values){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'date');
-		//DB::requireField($this->tableName, $this->name, "date");
-
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		return "date{$values['arrayValue']}";
 	}
 	
@@ -830,10 +838,10 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function decimal($values, $asDbValue=false){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'decimal', 'precision'=>"$this->wholeSize,$this->decimalSize");
-		//DB::requireField($this->tableName, $this->name, "decimal($this->wholeSize,$this->decimalSize)");
-
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		// Avoid empty strings being put in the db
 		if($values['precision'] == '') {
 			$precision = 1;
@@ -875,10 +883,9 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function float($values, $asDbValue=false){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'float');
-		//DB::requireField($this->tableName, $this->name, "float");
-		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		if($asDbValue)
 			return Array('data_type'=>'double precision');
 		else return "float{$values['arrayValue']}";
@@ -891,8 +898,12 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function int($values, $asDbValue=false){
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		if($asDbValue)
-			return Array('data_type'=>'integer', 'precision'=>$values['precision']);
+			return Array('data_type'=>'integer', 'precision'=>'32');
 		else {
 			if($values['arrayValue']!='')
 				$default='';
@@ -911,10 +922,10 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function ssdatetime($values, $asDbValue=false){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'datetime');
-		//DB::requireField($this->tableName, $this->name, $values);
-
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		if($asDbValue)
 			return Array('data_type'=>'timestamp without time zone');
 		else
@@ -928,9 +939,9 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function text($values, $asDbValue=false){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'mediumtext', 'character set'=>'utf8', 'collate'=>'utf8_general_ci');
-		//DB::requireField($this->tableName, $this->name, "mediumtext character set utf8 collate utf8_general_ci");
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
 		
 		if($asDbValue)
 			return Array('data_type'=>'text');
@@ -946,10 +957,9 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function time($values){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'time');
-		//DB::requireField($this->tableName, $this->name, "time");
-		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		return "time{$values['arrayValue']}";
 	}
 	
@@ -960,9 +970,10 @@ class PostgreSQLDatabase extends Database {
 	 * @return string
 	 */
 	public function varchar($values, $asDbValue=false){
-		//For reference, this is what typically gets passed to this function:
-		//$parts=Array('datatype'=>'varchar', 'precision'=>$this->size, 'character set'=>'utf8', 'collate'=>'utf8_general_ci');
-		//DB::requireField($this->tableName, $this->name, "varchar($this->size) character set utf8 collate utf8_general_ci");
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		if(!isset($values['precision']))
 			$values['precision']=255;
 			
@@ -976,6 +987,10 @@ class PostgreSQLDatabase extends Database {
 	 * Return a 4 digit numeric type.  MySQL has a proprietary 'Year' type.
 	 */
 	public function year($values, $asDbValue=false){
+		
+		if(!isset($values['arrayValue']))
+			$values['arrayValue']='';
+			
 		if($asDbValue)
 			return Array('data_type'=>'numeric', 'precision'=>'4');
 		else return "numeric(4){$values['arrayValue']}"; 
@@ -1119,7 +1134,7 @@ class PostgreSQLDatabase extends Database {
 	
 	/**
 	 * The core search engine configuration.
-	 * @todo There is no result relevancy or ordering as it currently stands.
+	 * @todo Properly extract the search functions out of the core.
 	 * 
 	 * @param string $keywords Keywords as a space separated string
 	 * @return object DataObjectSet of result pages
@@ -1136,16 +1151,22 @@ class PostgreSQLDatabase extends Database {
 		
 		$tables=Array();
 		
+		$locale=Translatable::get_current_locale();
+		
 		foreach($result as $row){
-			if($row['table_name']=='SiteTree')
+			if($row['table_name']=='SiteTree'){
 				$showInSearch="AND \"ShowInSearch\"=1 ";
-			else
-				$showInSearch='';
-				
-			if($keywords){
-				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) AS Relevance FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" " .  $this->default_fts_search_method . " q $showInSearch";
+				$localeFilter=" AND \"SiteTree\".\"Locale\"='$locale'";
 			} else {
-				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName FROM \"{$row['table_name']}\" WHERE 1=1 $showInSearch";
+				$showInSearch='';
+				$localeFilter='';	
+			}
+				
+			//TODO: this needs to be changed to use augmentSQL in the same way the MySQL equivilent does:
+			if($keywords){
+				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) AS Relevance FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" " .  $this->default_fts_search_method . " q $localeFilter $showInSearch";
+			} else {
+				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName FROM \"{$row['table_name']}\" WHERE 1=1 $localeFilter $showInSearch";
 			}
 			
 			//Add this query to the collection
