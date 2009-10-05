@@ -252,6 +252,7 @@ class PostgreSQLDatabase extends Database {
 	}
 	
 	public function createTable($tableName, $fields = null, $indexes = null, $options = null) {
+		
 		$fieldSchemas = $indexSchemas = "";
 		if($fields) foreach($fields as $k => $v) $fieldSchemas .= "\"$k\" $v,\n";
 		if(isset($this->class)){
@@ -1151,27 +1152,33 @@ class PostgreSQLDatabase extends Database {
 		
 		$tables=Array();
 		
-		$locale=Translatable::get_current_locale();
+		// Make column selection lists
+		$select = array(
+			'SiteTree' => array("\"ClassName\"","\"SiteTree\".\"ID\"","\"ParentID\"","\"Title\"","\"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","NULL AS \"Filename\"", "NULL AS \"Name\"", "\"CanViewType\""),
+			'File' => array("\"ClassName\"","\"File\".\"ID\"","NULL AS \"ParentID\"","\"Title\"","NULL AS \"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","\"Filename\"","\"Name\"", "NULL AS \"CanViewType\""),
+		);
 		
 		foreach($result as $row){
-			if($row['table_name']=='SiteTree'){
+			if($row['table_name']=='SiteTree')
 				$showInSearch="AND \"ShowInSearch\"=1 ";
-				$localeFilter=" AND \"SiteTree\".\"Locale\"='$locale'";
-			} else {
+			else
 				$showInSearch='';
-				$localeFilter='';	
-			}
 				
-			//TODO: this needs to be changed to use augmentSQL in the same way the MySQL equivilent does:
-			if($keywords){
-				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName, ts_rank(\"{$row['column_name']}\", q) AS Relevance FROM \"{$row['table_name']}\", to_tsquery('english', '$keywords') AS q WHERE \"{$row['column_name']}\" " .  $this->default_fts_search_method . " q $localeFilter $showInSearch";
-			} else {
-				$thisSql = "SELECT \"ID\", '{$row['table_name']}' AS ClassName FROM \"{$row['table_name']}\" WHERE 1=1 $localeFilter $showInSearch";
-			}
+			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
+			$query=singleton($row['table_name'])->extendedSql("\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
+			
+			
+			$query->select=$select[$row['table_name']];
+			$query->from['tsearch']=", to_tsquery('english', '$keywords') AS q";
+			
+			$query->select[]="ts_rank(\"{$row['column_name']}\", q) AS Relevance";
+			
+			$query->orderby=null;
 			
 			//Add this query to the collection
-			$tables[] = $thisSql;
+			$tables[] = $query->sql();
 		}
+		
 		$doSet=new DataObjectSet();
 		
 		$limit=$pageLength;
@@ -1187,17 +1194,15 @@ class PostgreSQLDatabase extends Database {
 		$records = DB::query($fullQuery);
 		$totalCount=0;
 		foreach($records as $record){
-			$item=DB::query("SELECT * FROM \"{$record['classname']}\" WHERE \"ID\"={$record['ID']};")->first();
-			$objects[] = new $record['classname']($item);
+			$objects[] = new $record['ClassName']($record);
 			$totalCount++;
 		}
-		
 		if(isset($objects)) $doSet = new DataObjectSet($objects);
 		else $doSet = new DataObjectSet();
 		
 		$doSet->setPageLimits($start, $pageLength, $totalCount);
-		
 		return $doSet;
+		
 		
 	}
 	
