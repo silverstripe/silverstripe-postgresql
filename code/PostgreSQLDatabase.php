@@ -251,7 +251,7 @@ class PostgreSQLDatabase extends Database {
 		return $this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first() ? true : false;
 	}
 	
-	public function createTable($tableName, $fields = null, $indexes = null, $options = null) {
+	public function createTable($tableName, $fields = null, $indexes = null, $options = null, $extensions = null) {
 		
 		$fieldSchemas = $indexSchemas = "";
 		if($fields) foreach($fields as $k => $v) $fieldSchemas .= "\"$k\" $v,\n";
@@ -291,14 +291,32 @@ class PostgreSQLDatabase extends Database {
 		}
 		if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($tableName, $k, $v) . "\n";
 		
+		//Do we need to create a tablespace for this item?
+		if($extensions && isset($extensions['tablespace'])){
+			
+			$this->createOrReplaceTablespace($extensions['tablespace']['name'], $extensions['tablespace']['location']);
+			$tableSpace=' TABLESPACE ' . $extensions['tablespace']['name'];
+		} else 
+			$tableSpace='';
+		
 		$this->query("CREATE TABLE \"$tableName\" (
 				$fieldSchemas
 				$fulltexts
 				primary key (\"ID\")
-			); $indexSchemas $addOptions");
+			)$tableSpace; $indexSchemas $addOptions");
 				
 		if($triggers!=''){
 			$this->query($triggers);
+		}
+		
+		//If we have a partitioning requirement, we do that here:
+		if($extensions && $extensions['partitions']){
+			$this->createOrReplacePartition($tableName, $extensions['partitions']);
+		}
+		
+		//Lastly, clustering goes here:
+		if($extensions && isset($extensions['cluster'])){
+			DB::query("CLUSTER \"$tableName\" USING \"{$extensions['cluster']}\";");
 		}
 		
 		return $tableName;
@@ -312,9 +330,9 @@ class PostgreSQLDatabase extends Database {
 	 * @param $alteredFields Updated fields, a map of field name => field schema
 	 * @param $alteredIndexes Updated indexes, a map of index name => index type
 	 */
-	public function alterTable($tableName, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null, $alteredOptions = null) {
-		$fieldSchemas = $indexSchemas = "";
+	public function alterTable($tableName, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null, $alteredOptions = null, $advancedOptions = null) {
 		
+		$fieldSchemas = $indexSchemas = "";
 		$alterList = array();
 		if($newFields) foreach($newFields as $k => $v) $alterList[] .= "ADD \"$k\" $v";
 		
@@ -327,6 +345,12 @@ class PostgreSQLDatabase extends Database {
 			}
 		}
 		
+		//Do we need to do anything with the tablespaces?
+		if($alteredOptions && isset($advancedOptions['tablespace'])){
+			$this->createOrReplaceTablespace($advancedOptions['tablespace']['name'], $advancedOptions['tablespace']['location']);
+			$this->query("ALTER TABLE \"$tableName\" SET TABLESPACE {$advancedOptions['tablespace']['name']};");
+		}
+			
 		//DB ABSTRACTION: we need to change the constraints to be a separate 'add' command,
 		//see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
 		$alterIndexList=Array();
@@ -365,7 +389,13 @@ class PostgreSQLDatabase extends Database {
 			$this->query("ALTER TABLE \"$tableName\" " . $alterations);
 		}
 		
-		if($alteredOptions && isset($alteredOptions[$this->class])) {
+		//Do we need to create a tablespace for this item?
+		if($advancedOptions && isset($advancedOptions['extensions']['tablespace'])){
+			$extensions=$advancedOptions['extensions'];
+			$this->createOrReplaceTablespace($extensions['tablespace']['name'], $extensions['tablespace']['location']);
+		}
+		
+		if($alteredOptions && isset($this->class) && isset($alteredOptions[$this->class])) {
 			$this->query(sprintf("ALTER TABLE \"%s\" %s", $tableName, $alteredOptions[$this->class]));
 			Database::alteration_message(
 				sprintf("Table %s options changed: %s", $tableName, $alteredOptions[$this->class]),
@@ -375,6 +405,17 @@ class PostgreSQLDatabase extends Database {
 		
 		foreach($alterIndexList as $alteration)
 			$this->query($alteration);
+			
+		//If we have a partitioning requirement, we do that here:
+		if($advancedOptions && isset($advancedOptions['partitions'])){
+			$this->createOrReplacePartition($tableName, $advancedOptions['partitions']);
+		}
+
+		//Lastly, clustering goes here:
+		if($advancedOptions && isset($advancedOptions['cluster'])){
+			echo 'clustering on ' . $advancedOptions['cluster'] . '<br>';
+			DB::query("CLUSTER \"$tableName\" USING ix_{$tableName}_{$advancedOptions['cluster']};"); 
+		}	
 	}
 	
 	/*
@@ -489,7 +530,8 @@ class PostgreSQLDatabase extends Database {
 			switch($field['data_type']){
 				case 'character varying':
 					//Check to see if there's a constraint attached to this column:
-					$constraint=$this->query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='" . $table . '_' . $field['column_name'] . "_check' ORDER BY 1;")->first();
+					//$constraint=$this->query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='" . $table . '_' . $field['column_name'] . "_check' ORDER BY 1;")->first();
+					$constraint=$this->constraintExists($table . '_' . $field['column_name'] . '_check');
 					$enum='';
 					if($constraint){
 						//Now we need to break this constraint text into bits so we can see what we have:
@@ -756,6 +798,14 @@ class PostgreSQLDatabase extends Database {
 		
 	}
 	
+	function constraintExists($constraint){
+		$exists=DB::query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='$constraint' ORDER BY 1;")->first();
+		
+		//echo "SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='$constraint' ORDER BY 1;<Br>";
+		
+		return $exists;
+	}
+	
 	/**
 	 * Return the number of rows affected by the previous operation.
 	 * @return int
@@ -784,7 +834,6 @@ class PostgreSQLDatabase extends Database {
 	 * This assumes that the trigger has been named in a unique fashion
 	 */
 	function dropTrigger($triggerName, $tableName){
-		
 		$exists=DB::query("SELECT tgname FROM pg_trigger WHERE tgname='$triggerName';")->first();
 		if($exists){
 			DB::query("DROP trigger $triggerName ON \"$tableName\";");
@@ -1212,6 +1261,21 @@ class PostgreSQLDatabase extends Database {
 	public function supportsTransactions(){
 		return $this->supportsTransactions;
 	}
+	
+	/*
+	 * This is a quick lookup to discover if the database supports particular extensions
+	 */
+	public function supportsExtensions($extensions=Array('partitions', 'tablespaces', 'clustering')){
+		if(isset($extensions['partitions']))
+			return true;
+		elseif(isset($extensions['tablespaces']))
+			return true;
+		elseif(isset($extensions['clustering']))
+			return true;
+		else
+			return false;
+	}
+	
 	/*
 	 * Start a prepared transaction
 	 * See http://developer.postgresql.org/pgdocs/postgres/sql-set-transaction.html for details on transaction isolation options
@@ -1251,6 +1315,58 @@ class PostgreSQLDatabase extends Database {
 	 */
 	public function endTransaction(){
 		DB::query('COMMIT;');
+	}
+	
+	/*
+	 * Given a tablespace and and location, either create a new one
+	 * or update the existing one
+	 */
+	public function createOrReplaceTablespace($name, $location){
+		$existing=DB::query("SELECT spcname, spclocation FROM pg_tablespace WHERE spcname='$name';")->first();
+		
+		//NOTE: this location must be empty for this to work
+		//We can't seem to change the location of the tablespace through any ALTER commands :(
+		
+		//If a tablespace with this name exists, but the location has changed, then drop the current one
+		if($existing && $location!=$existing['spclocation'])
+			DB::query("DROP TABLESPACE $name;");
+		
+		//If this is a new tablespace, or we have dropped the current one:
+		if(!$existing || ($existing && $location!=$existing['spclocation']))
+			DB::query("CREATE TABLESPACE $name LOCATION '$location';");
+						
+	}
+	
+	public function createOrReplacePartition($tableName, $partitions){
+		
+		$trigger='CREATE OR REPLACE FUNCTION ' . $tableName . '_insert_trigger() RETURNS TRIGGER AS $$ BEGIN ';
+		$first=true;
+		foreach($partitions as $partition_name=>$partition_value){
+			//Check that this child table does not already exist:
+			if(!$this->TableExists($partition_name)){
+				DB::query("CREATE TABLE $partition_name (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\");");
+			} else {
+				//Drop the constraint, we will recreate in in the next line
+				DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+				
+				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
+			}
+						
+			DB::query("ALTER TABLE $partition_name ADD CONSTRAINT \"{$partition_name}_pkey\" PRIMARY KEY (\"ID\");");
+			
+			if($first){
+				$trigger.='IF';
+				$first=false;
+			} else
+				$trigger.='ELSIF';
+				
+			$trigger.=' ( ' . $partition_value . ' ) THEN INSERT INTO ' . $partition_name . ' VALUES (NEW.*);';
+		}
+		
+		$trigger.='ELSE RAISE EXCEPTION \'Value id out of range.  Fix the ' . $tableName . '_insert_trigger() function!\'; END IF; RETURN NULL; END; $$ LANGUAGE plpgsql;';
+ 		$trigger.='CREATE TRIGGER trigger_' . $tableName . '_insert BEFORE INSERT ON "' . $tableName . '" FOR EACH ROW EXECUTE PROCEDURE ' . $tableName . '_insert_trigger();';
+		
+ 		DB::query($trigger);
 	}
 }
 
