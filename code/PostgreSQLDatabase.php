@@ -10,7 +10,7 @@
  * @package sapphire
  * @subpackage model
  */
-class PostgreSQLDatabase extends Database {
+class PostgreSQLDatabase extends SS_Database {
 	/**
 	 * Connection to the DBMS.
 	 * @var resource
@@ -1375,7 +1375,7 @@ class PostgreSQLDatabase extends Database {
  * @package sapphire
  * @subpackage model
  */
-class PostgreSQLQuery extends Query {
+class PostgreSQLQuery extends SS_Query {
 	/**
 	 * The MySQLDatabase object that created this result set.
 	 * @var MySQLDatabase
