@@ -124,7 +124,7 @@ class PostgreSQLDatabase extends SS_Database {
 	private $pgsqlVersion;
 	
 	/**
-	 * Get the version of MySQL.
+	 * Get the version of PostgreSQL.
 	 * @return float
 	 */
 	public function getVersion() {
@@ -231,9 +231,6 @@ class PostgreSQLDatabase extends SS_Database {
 	 * If the database doesn't exist, you should call createDatabase() after calling selectDatabase()
 	 */
 	public function selectDatabase($dbname) {
-		//$this->database = $dbname;
-		//if($this->databaseExists($this->database)) mysql_select_db($this->database, $this->dbConn);
-		//if($this->databaseExists($this->database)) pg_d
 		$this->database=$dbname;
 		
 		$this->tableList = $this->fieldList = $this->indexList = null;
@@ -318,7 +315,7 @@ class PostgreSQLDatabase extends SS_Database {
 		if($extensions && isset($extensions['cluster'])){
 			DB::query("CLUSTER \"$tableName\" USING \"{$extensions['cluster']}\";");
 		}
-		
+				
 		return $tableName;
 	}
 
@@ -413,9 +410,22 @@ class PostgreSQLDatabase extends SS_Database {
 
 		//Lastly, clustering goes here:
 		if($advancedOptions && isset($advancedOptions['cluster'])){
-			echo 'clustering on ' . $advancedOptions['cluster'] . '<br>';
 			DB::query("CLUSTER \"$tableName\" USING ix_{$tableName}_{$advancedOptions['cluster']};"); 
-		}	
+		} else {
+			//Check that clustering is not on this table, and if it is, remove it:
+			
+			//This is really annoying.  We need the oid of this table:
+			$stats=DB::query("SELECT relid FROM pg_stat_user_tables WHERE relname='$tableName';")->first();
+			$oid=$stats['relid'];
+			
+			//Now we can run a long query to get the clustered status:
+			//If anyone knows a better way to get the clustered status, then feel free to replace this!
+			$clustered=DB::query("SELECT c2.relname, i.indisclustered FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i WHERE c.oid = '$oid' AND c.oid = i.indrelid AND i.indexrelid = c2.oid AND indisclustered='t';")->first();
+			
+			if($clustered)
+				DB::query("ALTER TABLE \"$tableName\" SET WITHOUT CLUSTER;");
+					
+		}
 	}
 	
 	/*
@@ -662,7 +672,7 @@ class PostgreSQLDatabase extends SS_Database {
 					$fillfactor='WITH (FILLFACTOR = ' . $indexSpec['fillfactor'] . ')';
 				if(isset($indexSpec['where']))
 					$where='WHERE ' . $indexSpec['where'];
-					
+				
 				//create a type-specific index
 				//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
 				switch($indexSpec['type']){
@@ -868,7 +878,6 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/**
 	 * Return a date type-formatted string
-	 * For MySQL, we simply return the word 'date', no other parameters are necessary
 	 * 
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
@@ -927,7 +936,6 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/**
 	 * Return a float type-formatted string
-	 * For MySQL, we simply return the word 'date', no other parameters are necessary
 	 * 
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
@@ -971,7 +979,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
-	public function ssdatetime($values, $asDbValue=false){
+	public function SS_Datetime($values, $asDbValue=false){
 		
 		if(!isset($values['arrayValue']))
 			$values['arrayValue']='';
@@ -1001,7 +1009,6 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/**
 	 * Return a time type-formatted string
-	 * For MySQL, we simply return the word 'time', no other parameters are necessary
 	 * 
 	 * @params array $values Contains a tokenised list of info about this data type
 	 * @return string
@@ -1035,6 +1042,7 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/*
 	 * Return a 4 digit numeric type.  MySQL has a proprietary 'Year' type.
+	 * For Postgres, we'll use a 4 digit numeric
 	 */
 	public function year($values, $asDbValue=false){
 		
@@ -1171,7 +1179,6 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/*
 	 * This changes the index name depending on database requirements.
-	 * MySQL doesn't need any changes.
 	 */
 	function modifyIndex($index, $spec){
 		
@@ -1371,19 +1378,19 @@ class PostgreSQLDatabase extends SS_Database {
 }
 
 /**
- * A result-set from a MySQL database.
+ * A result-set from a PostgreSQL database.
  * @package sapphire
  * @subpackage model
  */
 class PostgreSQLQuery extends SS_Query {
 	/**
 	 * The MySQLDatabase object that created this result set.
-	 * @var MySQLDatabase
+	 * @var PostgreSQLDatabase
 	 */
 	private $database;
 	
 	/**
-	 * The internal MySQL handle that points to the result set.
+	 * The internal Postgres handle that points to the result set.
 	 * @var resource
 	 */
 	private $handle;
@@ -1391,7 +1398,7 @@ class PostgreSQLQuery extends SS_Query {
 	/**
 	 * Hook the result-set given into a Query class, suitable for use by sapphire.
 	 * @param database The database object that created this query.
-	 * @param handle the internal mysql handle that is points to the resultset.
+	 * @param handle the internal Postgres handle that is points to the resultset.
 	 */
 	public function __construct(PostgreSQLDatabase $database, $handle) {
 		$this->database = $database;
