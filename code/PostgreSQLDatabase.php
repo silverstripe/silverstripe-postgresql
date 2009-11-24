@@ -525,6 +525,8 @@ class PostgreSQLDatabase extends SS_Database {
 		
 		$output = array();
 		if($fields) foreach($fields as $field) {
+			
+			
 			switch($field['data_type']){
 				case 'character varying':
 					//Check to see if there's a constraint attached to this column:
@@ -576,8 +578,17 @@ class PostgreSQLDatabase extends SS_Database {
 					break;
 					
 				case 'integer':
-					$output[$field['column_name']]='integer(' . $field['numeric_precision'] . ')';
+					$output[$field['column_name']]='integer default ' . $field['column_default'];
 					break;
+					
+				case 'timestamp without time zone':
+					$output[$field['column_name']]='timestamp';
+					break;
+					
+				case 'smallint':
+					$output[$field['column_name']]='smallint default ' . $field['column_default'];
+					break;
+					
 				default:
 					$output[$field['column_name']] = $field;
 			}
