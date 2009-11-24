@@ -268,21 +268,9 @@ class PostgreSQLDatabase extends SS_Database {
 		if($indexes){
 			foreach($indexes as $name=>$this_index){
 				if($this_index['type']=='fulltext'){
-					
-					//For full text search, we need to create a column for the index
-					$columns=explode(',', $this_index['value']);
-					for($i=0; $i<sizeof($columns);$i++)
-						$columns[$i]="\"" . trim($columns[$i]) . "\"";
-	
-					$columns=implode(', ', $columns);
-					
-					$fulltexts .= "\"ts_$name\" tsvector, ";
-					$triggerName="ts_{$tableName}_{$name}";
-					
-					$this->dropTrigger($triggerName, $tableName);
-					$triggers.="CREATE TRIGGER $triggerName BEFORE INSERT OR UPDATE
-								ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
-								tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
+					$ts_details=$this->fulltext($this_index, $tableName, $name);
+					$fulltexts.=$ts_details['fulltexts'];
+					$triggers.=$ts_details['triggers'];
 				}
 			}
 		}
@@ -307,8 +295,8 @@ class PostgreSQLDatabase extends SS_Database {
 		}
 		
 		//If we have a partitioning requirement, we do that here:
-		if($extensions && $extensions['partitions']){
-			$this->createOrReplacePartition($tableName, $extensions['partitions']);
+		if($extensions && isset($extensions['partitions'])){
+			$this->createOrReplacePartition($tableName, $extensions['partitions'], $indexes, $extensions);
 		}
 		
 		//Lastly, clustering goes here:
@@ -1063,16 +1051,30 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/**
 	 * Create a fulltext search datatype for PostgreSQL
+	 * This will also return a trigger to be applied to this table
+	 * 
+	 * @todo: create custom functions to allow weighted searches
 	 *
 	 * @param array $spec
 	 */
-	/*function fulltext($table, $spec){
-		//$spec['name'] is the column we've created that holds all the words we want to index.
-		//This is a coalesced collection of multiple columns if necessary
-		$spec='create index ix_' . $table . '_' . $spec['name'] . ' on ' . $table . ' using ' . $this->default_fts_cluster_method . '(' . $spec['name'] . ');';
+	function fulltext($this_index, $tableName, $name){
+		//For full text search, we need to create a column for the index
+		$columns=explode(',', $this_index['value']);
+		for($i=0; $i<sizeof($columns);$i++)
+			$columns[$i]="\"" . trim($columns[$i]) . "\"";
+
+		$columns=implode(', ', $columns);
 		
-		return $spec;
-	}*/
+		$fulltexts="\"ts_$name\" tsvector, ";
+		$triggerName="ts_{$tableName}_{$name}";
+		
+		$this->dropTrigger($triggerName, $tableName);
+		$triggers="CREATE TRIGGER $triggerName BEFORE INSERT OR UPDATE
+					ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
+					tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
+		
+		return Array('fulltexts'=>$fulltexts, 'triggers'=>$triggers);
+	}
 	
 	/**
 	 * This returns the column which is the primary key for each table
@@ -1335,8 +1337,8 @@ class PostgreSQLDatabase extends SS_Database {
 		//We can't seem to change the location of the tablespace through any ALTER commands :(
 		
 		//If a tablespace with this name exists, but the location has changed, then drop the current one
-		if($existing && $location!=$existing['spclocation'])
-			DB::query("DROP TABLESPACE $name;");
+		//if($existing && $location!=$existing['spclocation'])
+		//	DB::query("DROP TABLESPACE $name;");
 		
 		//If this is a new tablespace, or we have dropped the current one:
 		if(!$existing || ($existing && $location!=$existing['spclocation']))
@@ -1344,14 +1346,25 @@ class PostgreSQLDatabase extends SS_Database {
 						
 	}
 	
-	public function createOrReplacePartition($tableName, $partitions){
+	public function createOrReplacePartition($tableName, $partitions, $indexes, $extensions){
+		
+		//We need the plpgsql language to be installed for this to work:
+		$this->createLanguage('plpgsql');
 		
 		$trigger='CREATE OR REPLACE FUNCTION ' . $tableName . '_insert_trigger() RETURNS TRIGGER AS $$ BEGIN ';
 		$first=true;
+		
+		//Do we need to create a tablespace for this item?
+		if($extensions && isset($extensions['tablespace'])){
+			$this->createOrReplaceTablespace($extensions['tablespace']['name'], $extensions['tablespace']['location']);
+			$tableSpace=' TABLESPACE ' . $extensions['tablespace']['name'];
+		} else 
+			$tableSpace='';
+			
 		foreach($partitions as $partition_name=>$partition_value){
 			//Check that this child table does not already exist:
 			if(!$this->TableExists($partition_name)){
-				DB::query("CREATE TABLE $partition_name (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\");");
+				DB::query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
 			} else {
 				//Drop the constraint, we will recreate in in the next line
 				DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
@@ -1359,7 +1372,7 @@ class PostgreSQLDatabase extends SS_Database {
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}
 						
-			DB::query("ALTER TABLE $partition_name ADD CONSTRAINT \"{$partition_name}_pkey\" PRIMARY KEY (\"ID\");");
+			DB::query("ALTER TABLE \"$partition_name\" ADD CONSTRAINT \"{$partition_name}_pkey\" PRIMARY KEY (\"ID\");");
 			
 			if($first){
 				$trigger.='IF';
@@ -1367,13 +1380,58 @@ class PostgreSQLDatabase extends SS_Database {
 			} else
 				$trigger.='ELSIF';
 				
-			$trigger.=' ( ' . $partition_value . ' ) THEN INSERT INTO ' . $partition_name . ' VALUES (NEW.*);';
+			$trigger.=" ($partition_value) THEN INSERT INTO \"$partition_name\" VALUES (NEW.*);";
+			
+			if($indexes){
+				// We need to propogate the indexes through to the child pages.
+				// Some of this code is duplicated, and could be tidied up
+				foreach($indexes as $name=>$this_index){
+						
+					if($this_index['type']=='fulltext'){
+						$fillfactor=$where='';
+						if(isset($this_index['fillfactor']))
+							$fillfactor='WITH (FILLFACTOR = ' . $this_index['fillfactor'] . ')';
+						if(isset($this_index['where']))
+							$where='WHERE ' . $this_index['where'];
+							
+						DB::query("CREATE INDEX \"ix_{$partition_name}_{$this_index['name']}\" ON \"" . $partition_name . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $name . "\") $fillfactor $where");
+						$ts_details=$this->fulltext($this_index, $partition_name, $name);
+						DB::query($ts_details['triggers']);
+					} else {
+						
+						if(is_array($this_index))
+							$index_name=$this_index['name'];
+						else $index_name=trim($this_index, '()');
+						
+						$query=$this->getIndexSqlDefinition($partition_name, $index_name, $this_index);
+						DB::query($query);
+					}
+				}
+			}
+			
+			//Lastly, clustering goes here:
+			if($extensions && isset($extensions['cluster'])){
+				DB::query("CLUSTER \"$partition_name\" USING \"{$extensions['cluster']}\";");
+			}
 		}
 		
 		$trigger.='ELSE RAISE EXCEPTION \'Value id out of range.  Fix the ' . $tableName . '_insert_trigger() function!\'; END IF; RETURN NULL; END; $$ LANGUAGE plpgsql;';
  		$trigger.='CREATE TRIGGER trigger_' . $tableName . '_insert BEFORE INSERT ON "' . $tableName . '" FOR EACH ROW EXECUTE PROCEDURE ' . $tableName . '_insert_trigger();';
 		
  		DB::query($trigger);
+
+	}
+	
+	/*
+	 * This will create a language if it doesn't already exist.
+	 * This is used by the createOrReplacePartition function, which needs plpgsql
+	 */
+	public function createLanguage($language){
+		$result=DB::query("SELECT lanname FROM pg_language WHERE lanname='$language';")->first();
+		
+		if(!$result){
+			DB::query("CREATE LANGUAGE $language;");
+		}
 	}
 }
 
