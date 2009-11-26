@@ -1119,9 +1119,31 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @todo Make a proper implementation
 	 */
 	function enumValuesForField($tableName, $fieldName) {
-		return array('SiteTree','Page');
+		//return array('SiteTree','Page');
+		$constraints=$this->constraintExists("{$tableName}_{$fieldName}_check");
+		$classes=Array();
+		if($constraints)
+			$classes=$this->EnumValuesFromConstraint($constraints['pg_get_constraintdef']);
+		
+		return $classes;
 	}
 
+	/**
+	 * Get the actual enum fields from the constraint value:
+	 */
+	private function EnumValuesFromConstraint($constraint){
+		$constraint=substr($constraint, strpos($constraint, 'ANY (ARRAY[')+11);
+		$constraint=substr($constraint, 0, -11);
+		$constraints=Array();
+		$segments=explode(',', $constraint);
+		foreach($segments as $this_segment){
+			$bits=preg_split('/ *:: */', $this_segment);
+			array_unshift($constraints, trim($bits[0], " '"));
+		}
+		
+		return $constraints;
+	}
+	
 	/**
 	 * Because NOW() doesn't always work...
 	 * MSSQL, I'm looking at you
