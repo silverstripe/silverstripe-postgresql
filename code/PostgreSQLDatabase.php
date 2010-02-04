@@ -1541,7 +1541,7 @@ class PostgreSQLDatabase extends SS_Database {
 			$date = "TIMESTAMP '$date'";
 		}
 
-		if($format == '%U') return "CAST(EXTRACT(epoch FROM $date) AS INT)";
+		if($format == '%U') return "FLOOR(EXTRACT(epoch FROM $date))";
 		
 		return "to_char($date, TEXT '$format')";
 		
@@ -1570,7 +1570,9 @@ class PostgreSQLDatabase extends SS_Database {
 			$date = "TIMESTAMP '$date'";
 		}
 
-		return "CAST($date + INTERVAL '$interval' AS TIMESTAMP(0))";
+		// ... when being to precise becomes a pain. we need to cut of the fractions.
+		// TIMESTAMP(0) doesn't work because it rounds instead flooring
+		return "CAST(SUBSTRING(CAST($date + INTERVAL '$interval' AS VARCHAR) FROM 1 FOR 19) AS TIMESTAMP)";
 	}
 
 	/**
@@ -1594,7 +1596,7 @@ class PostgreSQLDatabase extends SS_Database {
 			$date2 = "TIMESTAMP '$date2'";
 		}
 
-		return "CAST(EXTRACT(epoch FROM $date1) - EXTRACT(epoch from $date2) AS INT)";
+		return "(FLOOR(EXTRACT(epoch FROM $date1)) - FLOOR(EXTRACT(epoch from $date2)))";
 	}
 }
 
