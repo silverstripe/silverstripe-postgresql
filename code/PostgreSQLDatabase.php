@@ -949,6 +949,16 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	/**
+	 * Return a float type-formatted string cause double is not supported
+	 * 
+	 * @params array $values Contains a tokenised list of info about this data type
+	 * @return string
+	 */
+	public function double($values, $asDbValue=false){
+		return $this->float($values, $asDbValue);
+	}
+	
+	/**
 	 * Return a int type-formatted string
 	 * 
 	 * @params array $values Contains a tokenised list of info about this data type
@@ -1178,7 +1188,7 @@ class PostgreSQLDatabase extends SS_Database {
 		if($sqlQuery->where) $text .= " WHERE (" . $sqlQuery->getFilter(). ")";
 		if($sqlQuery->groupby) $text .= " GROUP BY " . implode(", ", $sqlQuery->groupby);
 		if($sqlQuery->having) $text .= " HAVING ( " . implode(" ) AND ( ", $sqlQuery->having) . " )";
-		if($sqlQuery->orderby) $text .= " ORDER BY " . $sqlQuery->orderby;
+		if($sqlQuery->orderby) $text .= " ORDER BY " . $this->orderMoreSpecifically($sqlQuery->select,$sqlQuery->orderby);
 
 		if($sqlQuery->limit) {
 			$limit = $sqlQuery->limit;
@@ -1204,6 +1214,35 @@ class PostgreSQLDatabase extends SS_Database {
 		return $text;
 	}
 	
+	protected function orderMoreSpecifically($select,$order) {
+		
+		$altered = false;
+
+		// split expression into order terms
+		$terms = explode(',', $order);
+
+		foreach($terms as $i => $term) {
+			$term = trim($term);
+
+			// check if table is unspecified
+			if(!preg_match('/\./', $term)) {
+				$direction = '';
+				if(preg_match('/( ASC)$|( DESC)$/i',$term)) list($term,$direction) = explode(' ', $term);
+
+				// find a match in the SELECT array and replace
+				foreach($select as $s) {
+					if(preg_match('/"[a-z0-9_]+"\.[\'"]' . $term . '[\'"]/i', trim($s))) {
+						$terms[$i] = $s . ' ' . $direction;
+						$altered = true;
+						break;
+					}
+				}
+			}
+		}
+
+		return implode(',', $terms);
+	}
+
 	/*
 	 * This will return text which has been escaped in a database-friendly manner
 	 * Using PHP's addslashes method won't work in MSSQL
@@ -1465,6 +1504,97 @@ class PostgreSQLDatabase extends SS_Database {
 		if(!$result){
 			DB::query("CREATE LANGUAGE $language;");
 		}
+	}
+
+	/**
+	 * Function to return an SQL datetime expression that can be used with Postgres
+	 * used for querying a datetime in a certain format
+	 * @param string $date to be formated, can be either 'now', literal datetime like '1973-10-14 10:30:00' or field name, e.g. '"SiteTree"."Created"'
+	 * @param string $format to be used, supported specifiers:
+	 * %Y = Year (four digits)
+	 * %m = Month (01..12)
+	 * %d = Day (01..31)
+	 * %H = Hour (00..23)
+	 * %i = Minutes (00..59)
+	 * %s = Seconds (00..59)
+	 * %U = unix timestamp, can only be used on it's own
+	 * @return string SQL datetime expression to query for a formatted datetime
+	 */
+	function formattedDatetimeClause($date, $format) {
+
+		preg_match_all('/%(.)/', $format, $matches);
+		foreach($matches[1] as $match) if(array_search($match, array('Y','m','d','H','i','s','U')) === false) user_error('formattedDatetimeClause(): unsupported format character %' . $match, E_USER_WARNING);
+
+		$translate = array(
+			'/%Y/' => 'YYYY',
+			'/%m/' => 'MM',
+			'/%d/' => 'DD',
+			'/%H/' => 'HH24',
+			'/%i/' => 'MI',
+			'/%s/' => 'SS',
+		);
+		$format = preg_replace(array_keys($translate), array_values($translate), $format);
+
+		if(preg_match('/^now$/i', $date)) {
+			$date = "NOW()";
+		} else if(preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/i', $date)) {
+			$date = "TIMESTAMP '$date'";
+		}
+
+		if($format == '%U') return "CAST(EXTRACT(epoch FROM $date) AS INT)";
+		
+		return "to_char($date, TEXT '$format')";
+		
+	}
+	
+	/**
+	 * Function to return an SQL datetime expression that can be used with Postgres
+	 * used for querying a datetime addition
+	 * @param string $date, can be either 'now', literal datetime like '1973-10-14 10:30:00' or field name, e.g. '"SiteTree"."Created"'
+	 * @param string $interval to be added, use the format [sign][integer] [qualifier], e.g. -1 Day, +15 minutes, +1 YEAR
+	 * supported qualifiers:
+	 * - years
+	 * - months
+	 * - days
+	 * - hours
+	 * - minutes
+	 * - seconds
+	 * This includes the singular forms as well
+	 * @return string SQL datetime expression to query for a datetime (YYYY-MM-DD hh:mm:ss) which is the result of the addition
+	 */
+	function datetimeIntervalClause($date, $interval) {
+
+		if(preg_match('/^now$/i', $date)) {
+			$date = "NOW()";
+		} else if(preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/i', $date)) {
+			$date = "TIMESTAMP '$date'";
+		}
+
+		return "CAST($date + INTERVAL '$interval' AS TIMESTAMP(0))";
+	}
+
+	/**
+	 * Function to return an SQL datetime expression that can be used with Postgres
+	 * used for querying a datetime substraction
+	 * @param string $date1, can be either 'now', literal datetime like '1973-10-14 10:30:00' or field name, e.g. '"SiteTree"."Created"'
+	 * @param string $date2 to be substracted of $date1, can be either 'now', literal datetime like '1973-10-14 10:30:00' or field name, e.g. '"SiteTree"."Created"'
+	 * @return string SQL datetime expression to query for the interval between $date1 and $date2 in seconds which is the result of the substraction
+	 */
+	function datetimeDifferenceClause($date1, $date2) {
+
+		if(preg_match('/^now$/i', $date1)) {
+			$date1 = "NOW()";
+		} else if(preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/i', $date1)) {
+			$date1 = "TIMESTAMP '$date1'";
+		}
+
+		if(preg_match('/^now$/i', $date2)) {
+			$date2 = "NOW()";
+		} else if(preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/i', $date2)) {
+			$date2 = "TIMESTAMP '$date2'";
+		}
+
+		return "CAST(EXTRACT(epoch FROM $date1) - EXTRACT(epoch from $date2) AS INT)";
 	}
 }
 
