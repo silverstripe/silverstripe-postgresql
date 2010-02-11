@@ -24,10 +24,10 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	/**
 	 * Ensure that the database server exists.
 	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('okay' => true, 'error' => 'details of error')
+	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
 	 */
 	public function requireDatabaseServer($databaseConfig) {
-		$okay = false;
+		$success = false;
 		$error = '';
 		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
 		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
@@ -38,14 +38,14 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 
 		$conn = @pg_connect($connstring);
 		if($conn) {
-			$okay = true;
+			$success = true;
 		} else {
-			$okay = false;
+			$success = false;
 			$error = 'PostgreSQL requires a valid username and password to determine if the server exists.';
 		}
 		
 		return array(
-			'okay' => $okay,
+			'success' => $success,
 			'error' => $error
 		);
 	}
@@ -55,10 +55,10 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	 * The established connection resource is returned with the results as well.
 	 * 
 	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('okay' => true, 'connection' => mysql link, 'error' => 'details of error')
+	 * @return array Result - e.g. array('success' => true, 'connection' => mysql link, 'error' => 'details of error')
 	 */
 	public function requireDatabaseConnection($databaseConfig) {
-		$okay = false;
+		$success = false;
 		$error = '';
 		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
 		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
@@ -69,14 +69,14 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		
 		$conn = @pg_connect($connstring);
 		if($conn) {
-			$okay = true;
+			$success = true;
 		} else {
-			$okay = false;
+			$success = false;
 			$error = '';
 		}
 		
 		return array(
-			'okay' => $okay,
+			'success' => $success,
 			'connection' => $conn,
 			'error' => $error
 		);
@@ -87,30 +87,30 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	 * or be able to create one if it doesn't exist.
 	 * 
 	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('okay' => true, 'existsAlready' => 'true')
+	 * @return array Result - e.g. array('success' => true, 'alreadyExists' => 'true')
 	 */
 	public function requireDatabaseOrCreatePermissions($databaseConfig) {
-		$okay = false;
-		$existsAlready = false;
+		$success = false;
+		$alreadyExists = false;
 		
 		$check = $this->requireDatabaseConnection($databaseConfig);
 		$conn = $check['connection'];
 		
 		$result = pg_query($conn, "SELECT datname FROM pg_database WHERE datname = '$databaseConfig[database]'");
 		if(pg_fetch_array($result)) {
-			$okay = true;
-			$existsAlready = true;
+			$success = true;
+			$alreadyExists = true;
 		} else {
 			if(@pg_query($conn, "CREATE DATABASE testing123")) {
 				pg_query($conn, "DROP DATABASE testing123");
-				$okay = true;
-				$existsAlready = false;
+				$success = true;
+				$alreadyExists = false;
 			}
 		}
 		
 		return array(
-			'okay' => $okay,
-			'existsAlready' => $existsAlready
+			'success' => $success,
+			'alreadyExists' => $alreadyExists
 		);
 	}
 
