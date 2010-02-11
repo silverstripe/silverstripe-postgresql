@@ -5,7 +5,7 @@
  * It does all the specific checking for PostgreSQLDatabase
  * to ensure that the configuration is setup correctly.
  * 
- * @package mssql
+ * @package postgresql
  */
 class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelper {
 
