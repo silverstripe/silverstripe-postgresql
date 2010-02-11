@@ -75,6 +75,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		
 		return array(
 			'success' => $success,
+			'connection' => $conn,
 			'error' => $error
 		);
 	}
