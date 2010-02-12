@@ -73,31 +73,25 @@ class PostgreSQLDatabase extends SS_Database {
 	/*
 	 * Uses whatever connection details are in the $parameters array to connect to a database of a given name
 	 */
-	function connectDatabase() {
-		$parameters = $this->parameters;
-		if(!$parameters) return false;
+	function connectDatabase(){
+		
+		$parameters=$this->parameters;
+		
+		if(!$parameters)
+			return false;
 			
 		($parameters['username']!='') ? $username=' user=' . $parameters['username'] : $username='';
 		($parameters['password']!='') ? $password=' password=' . $parameters['password'] : $password='';
 		
-		if(!isset($this->database)) $dbName = $parameters['database'];
-		else $dbName = $this->database;
+		if(!isset($this->database))
+			$dbName=$parameters['database'];
+		else $dbName=$this->database;
 		
-		// PostgreSQL expects the database name to be in lowercase!
-		$dbName = strtolower($dbName);
-		
-		// First of all, we need to connect to the server without a database name since it probably won't exist
-		$this->dbConn = pg_connect("host=" . $parameters['server'] . ' port=5432' . $username . $password);
-		
-		// Attempt to create the database if it doesn't exist - in this case the database will reconnect
-		if(!$this->databaseExists($dbName)) {
-			$this->selectDatabase($dbName);
-			$this->createDatabase($dbName);
-		}
-		
-		// This is the connection to the database WITH the database name that MUST exist! (there is no "USE" in PostgreSQL)
+		//assumes that the server and dbname will always be provided:
 		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=' . $dbName . $username . $password);
-		$this->active = true;
+		
+		//By virtue of getting here, the connection is active:
+		$this->active=true;
 		$this->database = $dbName;
 				
 		if(!$this->dbConn) {
@@ -204,8 +198,11 @@ class PostgreSQLDatabase extends SS_Database {
 	 * So you need to have called $this->selectDatabase() first, or used the __construct method
 	 */
 	public function createDatabase() {
+		
 		$this->query("CREATE DATABASE $this->database");
+		
 		$this->connectDatabase();
+		
 	}
 
 	/**
@@ -234,18 +231,21 @@ class PostgreSQLDatabase extends SS_Database {
 	 * If the database doesn't exist, you should call createDatabase() after calling selectDatabase()
 	 */
 	public function selectDatabase($dbname) {
-		$this->database = $dbname;
+		$this->database=$dbname;
+		
 		$this->tableList = $this->fieldList = $this->indexList = null;
+				
 		return true;
 	}
+
 	
 	/**
 	 * Returns true if the named database exists.
 	 */
 	public function databaseExists($name) {
-		$SQL_name = strtolower($this->addslashes($name));
-		$result = $this->query("SELECT datname FROM pg_database WHERE datname = '$SQL_name';")->value();
-		return $result ? true : false;
+		$SQL_name=Convert::raw2sql($name);
+		$result=$this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first();
+		return $this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first() ? true : false;
 	}
 	
 	public function createTable($tableName, $fields = null, $indexes = null, $options = null, $extensions = null) {
