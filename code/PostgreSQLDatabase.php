@@ -457,8 +457,15 @@ class PostgreSQLDatabase extends SS_Database {
 			
 			// SET check constraint (The constraint HAS to be dropped)
 			if(!empty($matches[4])) {
+				$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+				//If you run into constraint conflicts, here's how to reset it:
+				 //alter table "SiteTree" drop constraint "SiteTree_ClassName_check";
+				 //update "SiteTree" set "ClassName"='NewValue' WHERE "ClassName"='OldValue';
+				 //Repeat this for _Live and for _versions
+				if($existing_constraint){
 					$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
-					$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+				}
+				$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
 			}
 		}
 		
@@ -1439,8 +1446,10 @@ class PostgreSQLDatabase extends SS_Database {
 				DB::query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
 			} else {
 				//Drop the constraint, we will recreate in in the next line
-				DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
-				
+				$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$partition_name}_pkey';");
+				if($existing_constraint){
+					DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+				}
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}
 						
