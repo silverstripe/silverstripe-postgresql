@@ -87,7 +87,12 @@ class PostgreSQLDatabase extends SS_Database {
 			$dbName=$parameters['database'];
 		else $dbName=$this->database;
 		
-		//assumes that the server and dbname will always be provided:
+		//First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
+		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=postgres' . $username . $password);
+		if(!$this->databaseExists($dbName))
+			$this->createDatabase($dbName);
+			
+		//Now we can be sure that this database exists, so we can connect to it
 		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=' . $dbName . $username . $password);
 		
 		//By virtue of getting here, the connection is active:
@@ -194,12 +199,13 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	/*
-	 * This will create a database based on whatever is in the $this->database value
-	 * So you need to have called $this->selectDatabase() first, or used the __construct method
+	 * You can create a database based either on a supplied name, or from whatever is in the $this->database value
 	 */
-	public function createDatabase() {
-		
-		$this->query("CREATE DATABASE $this->database");
+	public function createDatabase($name=false) {
+		if(!$name)
+			$name=$this->database;
+			
+		$this->query("CREATE DATABASE \"$name\";");
 		
 		$this->connectDatabase();
 		
@@ -243,8 +249,9 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Returns true if the named database exists.
 	 */
 	public function databaseExists($name) {
-		$SQL_name=Convert::raw2sql($name);
-		$result=$this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first();
+		// We have to use addslashes here, since there may not be a database connection to base the Convert::raw2sql 
+		// function off.
+		$SQL_name=addslashes($name);
 		return $this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first() ? true : false;
 	}
 	
@@ -1175,6 +1182,21 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	function random(){
 		return 'RANDOM()';
+	}
+	
+	/*
+	 * This is a lookup table for data types.
+	 * For instance, Postgres uses 'INT', while MySQL uses 'UNSIGNED'
+	 * So this is a DB-specific list of equivilents.
+	 */
+	function dbDataType($type){
+		$values=Array(
+			'unsigned integer'=>'INT'
+		);
+		
+		if(isset($values[$type]))
+			return $values[$type];
+		else return '';
 	}
 	
 	/**
