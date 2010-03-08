@@ -83,9 +83,6 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	/**
 	 * Ensure that the database connection is able to use an existing database,
 	 * or be able to create one if it doesn't exist.
-	 *
-	 * Unfortunately, PostgreSQLDatabase doesn't support automatically creating databases
-	 * at the moment, so we can only check that the chosen database exists.
 	 * 
 	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
 	 * @return array Result - e.g. array('success' => true, 'alreadyExists' => 'true')
@@ -93,8 +90,6 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	public function requireDatabaseOrCreatePermissions($databaseConfig) {
 		$success = false;
 		$alreadyExists = false;
-		$canCreate = false;
-		
 		$check = $this->requireDatabaseConnection($databaseConfig);
 		$conn = $check['connection'];
 		
@@ -102,13 +97,17 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		if(pg_fetch_array($result)) {
 			$success = true;
 			$alreadyExists = true;
-			$canCreate = true;
+		} else {
+			if(@pg_query("CREATE DATABASE testing123", $conn)) {
+				pg_query("DROP DATABASE testing123", $conn);
+				$success = true;
+				$alreadyExists = false;
+			}
 		}
 		
 		return array(
 			'success' => $success,
-			'alreadyExists' => $alreadyExists,
-			'canCreate' => $canCreate
+			'alreadyExists' => $alreadyExists
 		);
 	}
 
