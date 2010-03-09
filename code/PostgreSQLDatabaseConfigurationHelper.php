@@ -98,8 +98,8 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 			$success = true;
 			$alreadyExists = true;
 		} else {
-			if(@pg_query("CREATE DATABASE testing123", $conn)) {
-				pg_query("DROP DATABASE testing123", $conn);
+			if(@pg_query($conn, "CREATE DATABASE testing123")) {
+				pg_query($conn, "DROP DATABASE testing123");
 				$success = true;
 				$alreadyExists = false;
 			}
