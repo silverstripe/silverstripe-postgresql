@@ -357,7 +357,9 @@ class PostgreSQLDatabase extends SS_Database {
 					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
 							
 				$k=$v['value'];
-				$alterIndexList[] .= $this->getIndexSqlDefinition($tableName, $k, $v);
+				$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
+				if($createIndex!==false)
+					$alterIndexList[] .= $createIndex;
 			}
  		}
 
@@ -365,15 +367,22 @@ class PostgreSQLDatabase extends SS_Database {
 		if($newIndexes) foreach($newIndexes as $k=>$v){
  			//Check that this index doesn't already exist:
  			$indexes=$this->indexList($tableName);
- 			if(isset($indexes[trim($v, '()')])){
+ 			if(!is_array($v)){
+ 				$name=trim($v, '()');
+ 			} else {
+ 				$name=$v['name'];
+ 			}
+ 			if(isset($indexes[$name])){
  				if(is_array($v)){
 					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
 				} else {
-					$alterIndexList[] = 'DROP INDEX ' . $indexes[trim($v, '()')]['indexname'] . ';';
+					$alterIndexList[] = 'DROP INDEX ' . $indexes[$name]['indexname'] . ';';
 				}
 			}
 					
- 			$alterIndexList[] = $this->getIndexSqlDefinition($tableName, $k, $v);
+			$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
+			if($createIndex!==false)
+ 				$alterIndexList[] = $createIndex;
  		}
  		
  		if($alterList) {
@@ -619,7 +628,9 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @param string $indexSpec The specification of the index, see Database::requireIndex() for more details.
 	 */
 	public function createIndex($tableName, $indexName, $indexSpec) {
-		$this->query($this->getIndexSqlDefinition($tableName, $indexName, $indexSpec));
+		$createIndex=$this->getIndexSqlDefinition($tableName, $indexName, $indexSpec);
+		if($createIndex!==false)
+			$this->query();
 	}
 	
 	/*
@@ -659,6 +670,10 @@ class PostgreSQLDatabase extends SS_Database {
 		//TODO: create table partition support
 		//TODO: create clustering options
 		
+		//NOTE: it is possible for *_renamed tables to have indexes whose names are not updates
+		//Therefore, we now check for the existance of indexes before we create them.
+		//This is techically a bug, since new tables will not be indexed.
+		
 		if(!$asDbValue){
 			
 			$tableCol= 'ix_' . $tableName . '_' . $indexName;
@@ -672,9 +687,12 @@ class PostgreSQLDatabase extends SS_Database {
 				$bits=explode(',', $indexSpec);
 				$indexes="\"" . implode("\",\"", $bits) . "\"";
 
-				$indexSpec=$this->indexList($tableName);
-				
-				return "create index $tableCol ON \"" . $tableName . "\" (" . $indexes . ");";
+				//One last check:
+				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='" . strtolower($tableCol) . "';")->first();
+				if(!$existing)
+					return "create index $tableCol ON \"" . $tableName . "\" (" . $indexes . ");";
+				else
+					return false;
 			} else {
 				
 				//Arrays offer much more flexibility and many more options:
@@ -686,34 +704,39 @@ class PostgreSQLDatabase extends SS_Database {
 				if(isset($indexSpec['where']))
 					$where='WHERE ' . $indexSpec['where'];
 				
-				//create a type-specific index
-				//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
-				switch($indexSpec['type']){
-					case 'fulltext':
-						$spec="create index $tableCol ON \"" . $tableName . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $indexName . "\") $fillfactor $where";
-						break;
-						
-					case 'unique':
-						$spec="create unique index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
-						break;
-						
-					case 'btree':
-						$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (\"" . $indexSpec['value'] . "\") $fillfactor $where";
-						break;
-	
-					case 'hash':
-						//NOTE: this is not a recommended index type
-						$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\") $fillfactor $where";
-						break;
-						
-					case 'index':
-						//'index' is the same as default, just a normal index with the default type decided by the database.
-					default:
-						$spec="create index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
-				}
+				//One last check:
+				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='$tableCol';");
 				
-				return trim($spec) . ';';
-	
+				if(!$existing){
+					//create a type-specific index
+					//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
+					switch($indexSpec['type']){
+						case 'fulltext':
+							$spec="create index $tableCol ON \"" . $tableName . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $indexName . "\") $fillfactor $where";
+							break;
+							
+						case 'unique':
+							$spec="create unique index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							break;
+							
+						case 'btree':
+							$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							break;
+		
+						case 'hash':
+							//NOTE: this is not a recommended index type
+							$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							break;
+							
+						case 'index':
+							//'index' is the same as default, just a normal index with the default type decided by the database.
+						default:
+							$spec="create index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+					}
+					
+					return trim($spec) . ';';
+				} else 
+					return false;
 			}
 		} else {
 			$indexName=trim($indexName, '()');
@@ -921,9 +944,14 @@ class PostgreSQLDatabase extends SS_Database {
 			$precision = $values['precision'];
 		}
 		
+		$defaultValue = '';
+		if(isset($values['default']) && is_numeric($values['default'])) {
+			$defaultValue = ' default ' . $values['default'];
+		}
+		
 		if($asDbValue)
 			return Array('data_type'=>'numeric', 'precision'=>'9');
-		else return "decimal($precision){$values['arrayValue']}";
+		else return "decimal($precision){$values['arrayValue']} $defaultValue";
 	}
 	
 	/**
@@ -1506,8 +1534,9 @@ class PostgreSQLDatabase extends SS_Database {
 							$index_name=$this_index['name'];
 						else $index_name=trim($this_index, '()');
 						
-						$query=$this->getIndexSqlDefinition($partition_name, $index_name, $this_index);
-						DB::query($query);
+						$createIndex=$this->getIndexSqlDefinition($partition_name, $index_name, $this_index);
+						if($createIndex!==false)
+							DB::query($createIndex);
 					}
 				}
 			}
@@ -1628,6 +1657,19 @@ class PostgreSQLDatabase extends SS_Database {
 		}
 
 		return "(FLOOR(EXTRACT(epoch FROM $date1)) - FLOOR(EXTRACT(epoch from $date2)))";
+	}
+	
+	/**
+	 * Return a set type-formatted string
+	 * This is used for Multi-enum support, which isn't actually supported by Postgres.
+	 *  
+	 * @param array $values Contains a tokenised list of info about this data type
+	 * @return string
+	 */
+	public function set($values){
+		//For reference, this is what typically gets passed to this function:
+		$default = empty($values['default']) ? '' : " default '$values[default]'";
+		return 'set(\'' . implode('\',\'', $values['enums']) . '\') character set utf8 collate utf8_general_ci' . $default;
 	}
 }
 
