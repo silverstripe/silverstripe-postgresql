@@ -489,7 +489,7 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	public function renameTable($oldTableName, $newTableName) {
-		$this->query("ALTER TABLE \"$oldTableName\" RENAME \"$newTableName\"");
+		$this->query("ALTER TABLE \"$oldTableName\" RENAME TO \"$newTableName\"");
 	}
 	
 	/**
