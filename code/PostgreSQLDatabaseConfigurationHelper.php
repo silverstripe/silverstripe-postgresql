@@ -34,7 +34,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		$server = $databaseConfig['server'];
 		$userPart = $username ? " user=$username" : '';
 		$passwordPart = $password ? " password=$password" : '';
-		$connstring = "host=$server port=5432 {$userPart}{$passwordPart}";
+		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
 
 		$conn = @pg_connect($connstring);
 		if($conn) {
@@ -63,7 +63,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		$server = $databaseConfig['server'];
 		$userPart = $username ? " user=$username" : '';
 		$passwordPart = $password ? " password=$password" : '';
-		$connstring = "host=$server port=5432 {$userPart}{$passwordPart}";
+		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
 		
 		$conn = @pg_connect($connstring);
 		if($conn) {
