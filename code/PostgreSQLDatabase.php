@@ -1662,14 +1662,15 @@ class PostgreSQLDatabase extends SS_Database {
 	/**
 	 * Return a set type-formatted string
 	 * This is used for Multi-enum support, which isn't actually supported by Postgres.
+	 * Throws a user error to show our lack of support, and return an "int", specifically for sapphire
+	 * tests that test multi-enums. This results in a test failure, but not crashing the test run.
 	 *  
 	 * @param array $values Contains a tokenised list of info about this data type
 	 * @return string
 	 */
 	public function set($values){
-		//For reference, this is what typically gets passed to this function:
-		$default = empty($values['default']) ? '' : " default '$values[default]'";
-		return 'set(\'' . implode('\',\'', $values['enums']) . '\') character set utf8 collate utf8_general_ci' . $default;
+		user_error("PostGreSQL does not support multi-enum");
+		return "int";
 	}
 }
 
