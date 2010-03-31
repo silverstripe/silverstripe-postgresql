@@ -1335,7 +1335,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//We can get a list of all the tsvector columns though this query:
 		//We know what tables to search in based on the $classesToSearch variable:
 		$result=DB::query("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE data_type='tsvector' AND table_name in ('" . implode("', '", $classesToSearch) . "');");
-		if (!$result->numRecords()) throw Exception('there are no full text columns to search');
+		if (!$result->numRecords()) throw new Exception('there are no full text columns to search');
 		
 		$tables=Array();
 		
