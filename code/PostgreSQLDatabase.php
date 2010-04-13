@@ -87,13 +87,15 @@ class PostgreSQLDatabase extends SS_Database {
 			$dbName=$parameters['database'];
 		else $dbName=$this->database;
 		
+		$port = empty($parameters['port']) ? 5432 : $parameters['port'];
+		
 		//First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
-		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=postgres' . $username . $password);
+		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
 		if(!$this->databaseExists($dbName))
 			$this->createDatabase($dbName);
 			
 		//Now we can be sure that this database exists, so we can connect to it
-		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=5432 dbname=' . $dbName . $username . $password);
+		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbName . $username . $password);
 		
 		//By virtue of getting here, the connection is active:
 		$this->active=true;
@@ -111,6 +113,13 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	public function getConnect($parameters) {
 		return null;
+	}
+	
+	/**
+	 * Return the parameters used to construct this database connection
+	 */
+	public function getParameters() {
+		return $this->parameters;
 	}
 	
 	/**
