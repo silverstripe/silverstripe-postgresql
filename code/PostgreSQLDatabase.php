@@ -274,8 +274,10 @@ class PostgreSQLDatabase extends SS_Database {
 		
 		//First of all, does this table already exist
 		$doesExist=$this->TableExists($tableName);
-		if($doesExist)
-			return false;
+		if($doesExist) {
+			// Table already exists, just return the name, in line with baseclass documentation.
+			return $tableName;
+		}
 			
 		//If we have a fulltext search request, then we need to create a special column
 		//for GiST searches
