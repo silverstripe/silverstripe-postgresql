@@ -235,6 +235,15 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	/**
+	 * Drop the database that this object is currently connected to.
+	 * Use with caution.
+	 */
+	public function dropDatabaseByName($dbName) {
+		if($dbName!=$this->database)
+			$this->query("DROP DATABASE \"$dbName\";");
+	}
+	
+	/**
 	 * Returns the name of the currently selected database
 	 */
 	public function currentDatabase() {
@@ -262,6 +271,13 @@ class PostgreSQLDatabase extends SS_Database {
 		// function off.
 		$SQL_name=addslashes($name);
 		return $this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first() ? true : false;
+	}
+	
+	/**
+	 * Returns a column 
+	 */
+	public function allDatabaseNames() {
+		return $this->query("SELECT datname FROM pg_database WHERE datistemplate=false;")->column();
 	}
 	
 	public function createTable($tableName, $fields = null, $indexes = null, $options = null, $extensions = null) {
@@ -1641,7 +1657,7 @@ class PostgreSQLDatabase extends SS_Database {
 			$date = "TIMESTAMP '$date'";
 		}
 
-		// ... when being too precise becomes a pain. We need to cut of the fractions.
+		// ... when being too precise becomes a pain. we need to cut of the fractions.
 		// TIMESTAMP(0) doesn't work because it rounds instead flooring
 		return "CAST(SUBSTRING(CAST($date + INTERVAL '$interval' AS VARCHAR) FROM 1 FOR 19) AS TIMESTAMP)";
 	}
