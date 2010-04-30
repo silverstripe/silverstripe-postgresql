@@ -1641,7 +1641,7 @@ class PostgreSQLDatabase extends SS_Database {
 			$date = "TIMESTAMP '$date'";
 		}
 
-		// ... when being to precise becomes a pain. we need to cut of the fractions.
+		// ... when being too precise becomes a pain. We need to cut of the fractions.
 		// TIMESTAMP(0) doesn't work because it rounds instead flooring
 		return "CAST(SUBSTRING(CAST($date + INTERVAL '$interval' AS VARCHAR) FROM 1 FOR 19) AS TIMESTAMP)";
 	}
