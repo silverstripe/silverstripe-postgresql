@@ -88,7 +88,6 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	public function requireDatabaseVersion($databaseConfig) {
 		$success = false;
 		$error = '';
-		$version = 0;
 
 		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
 		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
@@ -97,9 +96,8 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		$passwordPart = $password ? " password=$password" : '';
 		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
 		$conn = @pg_connect($connstring);
-
-		$versionInfo = pg_version($conn);
-		$version = isset($versionInfo['server']) ? $versionInfo['server'] : null;
+		$info = @pg_version($conn);
+		$version = ($info && isset($info['server'])) ? $info['server'] : null;
 		if(!$version) {
 			// fallback to using the version() function
 			$result = @pg_query($conn, "SELECT version()");
