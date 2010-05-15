@@ -81,6 +81,53 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	}
 
 	/**
+	 * Ensure that the PostgreSQL version is at least 8.3.
+	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
+	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
+	 */
+	public function requireDatabaseVersion($databaseConfig) {
+		$success = false;
+		$error = '';
+		$version = 0;
+
+		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
+		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
+		$server = $databaseConfig['server'];
+		$userPart = $username ? " user=$username" : '';
+		$passwordPart = $password ? " password=$password" : '';
+		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
+		$conn = @pg_connect($connstring);
+
+		$versionInfo = pg_version($conn);
+		$version = isset($versionInfo['server']) ? $versionInfo['server'] : null;
+		if(!$version) {
+			// fallback to using the version() function
+			$result = @pg_query($conn, "SELECT version()");
+			$row = @pg_fetch_array($result);
+
+			if($row && isset($row[0])) {
+				$parts = explode(' ', trim($row[0]));
+				// ASSUMPTION version number is the second part e.g. "PostgreSQL 8.4.3"
+				$version = trim($parts[1]);
+			}
+		}
+
+		if($version) {
+			$success = version_compare($version, '8.3', '>=');
+			if(!$success) {
+				$error = "Your PostgreSQL version is $version. It's recommended you use at least 8.3.";
+			}
+		} else {
+			$error = "Your PostgreSQL version could not be determined.";
+		}
+
+		return array(
+			'success' => $success,
+			'error' => $error
+		);
+	}
+
+	/**
 	 * Ensure that the database connection is able to use an existing database,
 	 * or be able to create one if it doesn't exist.
 	 * 
