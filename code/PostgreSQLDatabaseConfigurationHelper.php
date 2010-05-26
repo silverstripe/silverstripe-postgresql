@@ -80,15 +80,8 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 		);
 	}
 
-	/**
-	 * Ensure that the PostgreSQL version is at least 8.3.
-	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
-	 */
-	public function requireDatabaseVersion($databaseConfig) {
-		$success = false;
-		$error = '';
-
+	public function getDatabaseVersion($databaseConfig) {
+		$version = 0;
 		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
 		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
 		$server = $databaseConfig['server'];
@@ -109,6 +102,19 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 				$version = trim($parts[1]);
 			}
 		}
+
+		return $version;
+	}
+
+	/**
+	 * Ensure that the PostgreSQL version is at least 8.3.
+	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
+	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
+	 */
+	public function requireDatabaseVersion($databaseConfig) {
+		$success = false;
+		$error = '';
+		$version = $this->getDatabaseVersion($databaseConfig);
 
 		if($version) {
 			$success = version_compare($version, '8.3', '>=');
