@@ -501,7 +501,7 @@ class PostgreSQLDatabase extends SS_Database {
 			// SET check constraint (The constraint HAS to be dropped)
 			if(!empty($matches[4])) {
 				$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
-				//If you run into constraint conflicts, here's how to reset it:
+				//If you run into constraint row violation conflicts, here's how to reset it:
 				 //alter table "SiteTree" drop constraint "SiteTree_ClassName_check";
 				 //update "SiteTree" set "ClassName"='NewValue' WHERE "ClassName"='OldValue';
 				 //Repeat this for _Live and for _versions
