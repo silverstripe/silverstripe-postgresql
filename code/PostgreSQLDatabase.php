@@ -1734,7 +1734,7 @@ class PostgreSQLQuery extends SS_Query {
 	}
 	
 	public function seek($row) {
-		return pg_result_seek($this-handle, $row);
+		return pg_result_seek($this->handle, $row);
 	}
 	
 	public function numRecords() {
