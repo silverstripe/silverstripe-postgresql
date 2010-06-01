@@ -11,7 +11,7 @@ Requirements
 -----------------------------------------------
 - PostgreSQL 8.3.x or greater must be installed
 - PostgreSQL <8.3.0 may work if T-Search is manually installed
-- Known to work on OS X Leopard, Windows Server 2008 R2 and probably Linux
+- Known to work on OS X Leopard, Windows Server 2008 R2 and Linux
 
 Documentation
 -----------------------------------------------
@@ -32,16 +32,11 @@ See the documentation link for examples of PostgreSQL-specific functionality.
 Known issues:
 -----------------------------------------------
 
-When you're setting this up for the first time, you will need to manually create the database 'SS_project' or whatever it's called.  
-I haven't implemented the automatic database creation logic yet.
-
 All column and table names must be double-quoted.  PostgreSQL automatically lower-cases columns, and your queries will fail if you don't.
 
 Ts_vector columns are not automatically detected by the built-in search filters.  
 That means if you're doing a search through the CMS on a ModelAdmin object, it will use LIKE queries which are very slow.  
 If you're writing your own front-end search system, you can specify the columns to use for search purposes, and you get the full benefits of T-Search.
 
-Most other modules probably don't work.  There are many instances of MySQL-compatible backticks '`' littering existing modules, 
-and these need to be changed to double-quotes.  
-There may also be instances of MySQL-specific SQL queries which will need to be made database-agnostic where possible.
+If you are using unsupported modules, there may be instances of MySQL-specific SQL queries which will need to be made database-agnostic where possible.
 
