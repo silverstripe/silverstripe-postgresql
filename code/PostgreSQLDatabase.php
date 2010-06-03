@@ -1180,10 +1180,11 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	/**
 	 * Returns true if this table exists
-	 * @todo Make a proper implementation
 	 */
 	function hasTable($tableName) {
-		return true;
+		$result = $this->query("SELECT tablename FROM pg_tables WHERE tablename = '$tableName'");
+		if ($result->numRecords() > 0) return true;
+		else return false;
 	}
 	
 	/**
