@@ -397,7 +397,7 @@ class PostgreSQLDatabase extends SS_Database {
  			if(!is_array($v)){
  				$name=trim($v, '()');
  			} else {
- 				$name=$v['name'];
+ 				$name=(isset($v['name'])) ? $v['name'] : $k;
  			}
  			if(isset($indexes[$name])){
  				if(is_array($v)){
