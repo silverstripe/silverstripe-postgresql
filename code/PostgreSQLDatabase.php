@@ -1357,6 +1357,13 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
 		
+		//Fix the keywords to be ts_query compatitble:
+		//Spaces must have pipes
+		//@TODO: properly handle boolean operators here.
+		$keywords=trim($keywords);
+		$keywords=str_replace(' ', ' | ', $keywords);
+		$keywords=str_replace('"', "'", $keywords);
+		
 		$keywords = Convert::raw2sql(trim($keywords));
 		$htmlEntityKeywords = htmlentities($keywords);
 		
