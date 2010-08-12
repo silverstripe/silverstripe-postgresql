@@ -11,6 +11,7 @@
  * @subpackage model
  */
 class PostgreSQLDatabase extends SS_Database {
+	
 	/**
 	 * Connection to the DBMS.
 	 * @var resource
@@ -54,6 +55,15 @@ class PostgreSQLDatabase extends SS_Database {
 	private $supportsTransactions=true;
 	
 	/**
+	 * Determines whether to check a database exists on the host by 
+	 * querying the 'postgres' database and running createDatabase.
+	 * 
+	 * Some locked down systems prevent access to the 'postgres' table in
+	 * which case you need to set this to false.
+	 */
+	public static $check_database_exists = true;
+	
+	/**
 	 * Connect to a PostgreSQL database.
 	 * @param array $parameters An map of parameters, which should include:
 	 *  - server: The server, eg, localhost
@@ -89,10 +99,14 @@ class PostgreSQLDatabase extends SS_Database {
 		
 		$port = empty($parameters['port']) ? 5432 : $parameters['port'];
 		
-		//First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
-		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
-		if(!$this->databaseExists($dbName))
-			$this->createDatabase($dbName);
+		// First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
+		// some setups prevent access to this database so set PostgreSQLDatabase::$check_database_exists = false
+		if(self::$check_database_exists) {
+			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
+			
+			if(!$this->databaseExists($dbName))
+				$this->createDatabase($dbName);
+		}
 			
 		//Now we can be sure that this database exists, so we can connect to it
 		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbName . $username . $password);
