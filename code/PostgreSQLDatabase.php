@@ -393,9 +393,9 @@ class PostgreSQLDatabase extends SS_Database {
 			
 			if(isset($indexes[$v['value']])){
 				if(is_array($v))
-					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+					$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
 				else
-					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
+					$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
 							
 				$k=$v['value'];
 				$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
@@ -415,9 +415,9 @@ class PostgreSQLDatabase extends SS_Database {
  			}
  			if(isset($indexes[$name])){
  				if(is_array($v)){
-					$alterIndexList[] = 'DROP INDEX ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+					$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
 				} else {
-					$alterIndexList[] = 'DROP INDEX ' . $indexes[$name]['indexname'] . ';';
+					$alterIndexList[] = 'DROP INDEX IF EXISTS ' . $indexes[$name]['indexname'] . ';';
 				}
 			}
 					
