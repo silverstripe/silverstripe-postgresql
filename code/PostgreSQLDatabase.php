@@ -146,24 +146,13 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	/**
-	 * The version of PostgreSQL.
-	 * @var float
-	 */
-	private $pgsqlVersion;
-	
-	/**
 	 * Get the version of PostgreSQL.
-	 * @return float
+	 * @return string
 	 */
 	public function getVersion() {
-		if(!$this->pgsqlVersion) {
-			//returns something like this: PostgreSQL 8.3.3 on i386-apple-darwin9.3.0, compiled by GCC i686-apple-darwin9-gcc-4.0.1 (GCC) 4.0.1 (Apple Inc. build 5465)
-			$postgres=strlen('PostgreSQL ');
-			$db_version=$this->query("SELECT VERSION()")->value();
-			
-			$this->pgsqlVersion = (float)trim(substr($db_version, $postgres, strpos($db_version, ' on ')));
-		}
-		return $this->pgsqlVersion;
+		$version = pg_version($this->dbConn);
+		if(isset($version['server'])) return $version['server'];
+		else return false;
 	}
 	
 	/**
