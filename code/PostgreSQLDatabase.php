@@ -1740,8 +1740,8 @@ class PostgreSQLQuery extends SS_Query {
 		$this->handle = $handle;
 	}
 	
-	public function __destroy() {
-		pg_free_result($this->handle);
+	public function __destruct() {
+		if(is_resource($this->handle)) pg_free_result($this->handle);
 	}
 	
 	public function seek($row) {
