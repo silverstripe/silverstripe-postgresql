@@ -591,7 +591,6 @@ class PostgreSQLDatabase extends SS_Database {
 		$output = array();
 		if($fields) foreach($fields as $field) {
 			
-			
 			switch($field['data_type']){
 				case 'character varying':
 					//Check to see if there's a constraint attached to this column:
@@ -654,6 +653,14 @@ class PostgreSQLDatabase extends SS_Database {
 					$output[$field['column_name']]='smallint default ' . $field['column_default'];
 					break;
 					
+				case 'time without time zone':
+					$output[$field['column_name']]='time';
+					break;
+					
+				case 'double precision':
+					$output[$field['column_name']]='float';
+					break;
+					
 				default:
 					$output[$field['column_name']] = $field;
 			}
@@ -694,12 +701,12 @@ class PostgreSQLDatabase extends SS_Database {
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
 						break;
 					case 'hash':
-						$indexSpec='using hash (' . $indexSpec['value'] . ')';
+						$indexSpec='(' . $indexSpec['value'] . ')';
 						break;
 					case 'index':
 						//The default index is 'btree', which we'll use by default (below):
 					default:
-						$indexSpec='using btree (' . $indexSpec['value'] . ')';
+						$indexSpec='(' . $indexSpec['value'] . ')';
 						break;
 				}
 			}
