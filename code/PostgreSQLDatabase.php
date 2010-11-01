@@ -502,17 +502,19 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 			
 			// SET check constraint (The constraint HAS to be dropped)
-			if(!empty($matches[4])) {
-				$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
-				//If you run into constraint row violation conflicts, here's how to reset it:
-				 //alter table "SiteTree" drop constraint "SiteTree_ClassName_check";
-				 //update "SiteTree" set "ClassName"='NewValue' WHERE "ClassName"='OldValue';
-				 //Repeat this for _Live and for _versions
-				if($existing_constraint){
-					$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
-				}
+			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+			//If you run into constraint row violation conflicts, here's how to reset it:
+			 //alter table "SiteTree" drop constraint "SiteTree_ClassName_check";
+			 //update "SiteTree" set "ClassName"='NewValue' WHERE "ClassName"='OldValue';
+			 //Repeat this for _Live and for _versions
+			 
+			//First, delete any existing constraint on this column, even if it's no longer an enum
+			if($existing_constraint)
+				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+			
+			//Now create the constraint (if we've asked for one)
+			if(!empty($matches[4]))
 				$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
-			}
 		}
 		
 		return isset($alterCol) ? $alterCol : '';
@@ -681,11 +683,13 @@ class PostgreSQLDatabase extends SS_Database {
 					case 'unique':
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
 						break;
-					case 'btree':
-						$indexSpec='using btree (' . $indexSpec['value'] . ')';
-						break;
 					case 'hash':
 						$indexSpec='using hash (' . $indexSpec['value'] . ')';
+						break;
+					case 'index':
+						//The default index is 'btree', which we'll use by default (below):
+					default:
+						$indexSpec='using btree (' . $indexSpec['value'] . ')';
 						break;
 				}
 			}
@@ -734,10 +738,17 @@ class PostgreSQLDatabase extends SS_Database {
 				if(isset($indexSpec['where']))
 					$where='WHERE ' . $indexSpec['where'];
 				
+				//Fix up the value entry to be quoted:
+				$value_bits=explode(',', $indexSpec['value']);
+				$new_values=Array();
+				foreach($value_bits as $value){
+					$new_values[]="\"" . trim($value, ' "') . "\"";
+				}
+				$indexSpec['value']=implode(',', $new_values);
+					
 				//One last check:
-				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='$tableCol';");
-				
-				if(!$existing){
+				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='" . strtolower($tableCol) . "';");
+				if(!$existing->first()){
 					//create a type-specific index
 					//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made		
 					switch($indexSpec['type']){
@@ -746,27 +757,29 @@ class PostgreSQLDatabase extends SS_Database {
 							break;
 							
 						case 'unique':
-							$spec="create unique index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							$spec="create unique index $tableCol ON \"" . $tableName . "\" (" . $indexSpec['value'] . ") $fillfactor $where";
 							break;
 							
 						case 'btree':
-							$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (" . $indexSpec['value'] . ") $fillfactor $where";
 							break;
 		
 						case 'hash':
 							//NOTE: this is not a recommended index type
-							$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (" . $indexSpec['value'] . ") $fillfactor $where";
 							break;
 							
 						case 'index':
 							//'index' is the same as default, just a normal index with the default type decided by the database.
 						default:
-							$spec="create index $tableCol ON \"" . $tableName . "\" (\"" . $indexSpec['value'] . "\") $fillfactor $where";
+							$spec="create index $tableCol ON \"" . $tableName . "\" (" . $indexSpec['value'] . ") $fillfactor $where";
 					}
 					
 					return trim($spec) . ';';
-				} else 
+				} else {
+					
 					return false;
+				}
 			}
 		} else {
 			$indexName=trim($indexName, '()');
@@ -1368,7 +1381,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$keywords=str_replace('"', "'", $keywords);
 		
 		$keywords = Convert::raw2sql(trim($keywords));
-		$htmlEntityKeywords = htmlentities($keywords);
+		$htmlEntityKeywords = htmlentities($keywords, ENT_NOQUOTES);
 		
 		//We can get a list of all the tsvector columns though this query:
 		//We know what tables to search in based on the $classesToSearch variable:
