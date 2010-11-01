@@ -64,6 +64,16 @@ class PostgreSQLDatabase extends SS_Database {
 	public static $check_database_exists = true;
 	
 	/**
+	 * This holds a copy of all the constraint results that are returned
+	 * via the function constraintExists().  This is a bit faster than 
+	 * repeatedly querying this column, and should allow the database
+	 * to use it's built-in caching features for better queries.
+	 *  
+	 * @var array
+	 */
+	private static $cached_constraints=array();
+	
+	/**
 	 * Connect to a PostgreSQL database.
 	 * @param array $parameters An map of parameters, which should include:
 	 *  - server: The server, eg, localhost
@@ -887,12 +897,20 @@ class PostgreSQLDatabase extends SS_Database {
 		
 	}
 	
+	/**
+	 * Find out what the constraint information is, given a constraint name.
+	 * We also cache this result, so the next time we don't need to do a
+	 * query all over again.
+	 * 
+	 * @param string $constraint
+	 */
 	function constraintExists($constraint){
-		$exists=DB::query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='$constraint' ORDER BY 1;")->first();
+		if(!isset(self::$cached_constraints[$constraint])){
+			$exists=DB::query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='$constraint' ORDER BY 1;")->first();
+			self::$cached_constraints[$constraint]=$exists;
+		}
 		
-		//echo "SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='$constraint' ORDER BY 1;<Br>";
-		
-		return $exists;
+		return self::$cached_constraints[$constraint];
 	}
 	
 	/**
