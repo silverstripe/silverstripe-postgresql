@@ -1434,7 +1434,7 @@ class PostgreSQLDatabase extends SS_Database {
 			$query->select=$select[$row['table_name']];
 			$query->from['tsearch']=", to_tsquery('english', '$keywords') AS q";
 			
-			$query->select[]="ts_rank(\"{$row['column_name']}\", q) AS Relevance";
+			$query->select[]="ts_rank(\"{$row['column_name']}\", q) AS \"Relevance\"";
 			
 			$query->orderby=null;
 			
