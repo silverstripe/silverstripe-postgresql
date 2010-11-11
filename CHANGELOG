@@ -1,3 +1,11 @@
+0.9.2
+	Released November 12 2010
+	Changes:
+		Released for SilverStripe 2.4.2
+		Better indexing support - btree is now the default index type
+		T-Search columns now properly supported within table alterations
+		Better support for detecting datatypes in dev/build
+		
 0.9.1
 	Released June 1st 2010
 	Changes:
