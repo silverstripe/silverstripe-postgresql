@@ -316,7 +316,7 @@ class PostgreSQLDatabase extends SS_Database {
 			foreach($indexes as $name=>$this_index){
 				if($this_index['type']=='fulltext'){
 					$ts_details=$this->fulltext($this_index, $tableName, $name);
-					$fulltexts.=$ts_details['fulltexts'];
+					$fulltexts.=$ts_details['fulltexts'] . ', ';
 					$triggers.=$ts_details['triggers'];
 				}
 			}
@@ -386,23 +386,64 @@ class PostgreSQLDatabase extends SS_Database {
 		//DB ABSTRACTION: we need to change the constraints to be a separate 'add' command,
 		//see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
 		$alterIndexList=Array();
-		if($alteredIndexes) foreach($alteredIndexes as $v) {
+		//Pick up the altered indexes here:
+		$fieldList = $this->fieldList($tableName);
+		$fulltexts=false;
+		$drop_triggers=false;
+		$triggers=false;
+		if($alteredIndexes) foreach($alteredIndexes as $key=>$v) {
 			//We are only going to delete indexes which exist
 			$indexes=$this->indexList($tableName);
 			
-			if(isset($indexes[$v['value']])){
-				if(is_array($v))
-					$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
-				else
-					$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
-							
-				$k=$v['value'];
-				$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
-				if($createIndex!==false)
-					$alterIndexList[] .= $createIndex;
+			if($v['type']=='fulltext'){
+				//For full text indexes, we need to drop the trigger, drop the index, AND drop the column
+				
+				//Go and get the tsearch details:
+				$ts_details=$this->fulltext($v, $tableName, $key);
+				
+				//Drop this column if it already exists:
+				
+				//No IF EXISTS option is available for Postgres <9.0
+				if(array_key_exists($ts_details['ts_name'], $fieldList)){
+					$fulltexts.="ALTER TABLE \"{$tableName}\" DROP COLUMN \"{$ts_details['ts_name']}\";";
+				}
+			
+				$drop_triggers.= 'DROP TRIGGER IF EXISTS ts_' . strtolower($tableName) . '_' . strtolower($key) . ' ON "' . $tableName . '";';
+				$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+				
+				//We'll execute these later:
+				$fulltexts.="ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
+				$triggers.=$ts_details['triggers'];
+			} else {
+				if(isset($indexes[$v['value']])){
+					if(is_array($v))
+						$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
+					else
+						$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
+								
+					$k=$v['value'];
+					$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
+					if($createIndex!==false)
+						$alterIndexList[] .= $createIndex;
+				}
 			}
  		}
 
+ 		//If we have a fulltext search request, then we need to create a special column
+		//for GiST searches
+		//Pick up the new indexes here:
+		if($newIndexes){
+			foreach($newIndexes as $name=>$this_index){
+				if($this_index['type']=='fulltext'){
+					$ts_details=$this->fulltext($this_index, $tableName, $name);
+					if(!isset($fieldList[$ts_details['ts_name']])){
+						$fulltexts.="ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
+						$triggers.=$ts_details['triggers'];
+					}
+				}
+			}
+		}
+		
 		//Add the new indexes:
 		if($newIndexes) foreach($newIndexes as $k=>$v){
  			//Check that this index doesn't already exist:
@@ -444,6 +485,26 @@ class PostgreSQLDatabase extends SS_Database {
 			);
 		}
 		
+		//Create any fulltext columns and triggers here:
+		if($fulltexts)
+			$this->query($fulltexts);
+		if($drop_triggers)
+			$this->query($drop_triggers);
+			
+		if($triggers) {
+			$this->query($triggers);
+
+			$triggerbits=explode(';', $triggers);
+			foreach($triggerbits as $trigger){
+				$trigger_fields=$this->triggerFieldsFromTrigger($trigger);
+				
+				if($trigger_fields){
+					//We need to run a simple query to force the database to update the triggered columns
+					$this->query("UPDATE \"{$tableName}\" SET \"{$trigger_fields[0]}\"=\"$trigger_fields[0]\";");
+				}
+			}
+		}
+				
 		foreach($alterIndexList as $alteration)
 			$this->query($alteration);
 			
@@ -484,15 +545,9 @@ class PostgreSQLDatabase extends SS_Database {
 		// First, we split the column specifications into parts
 		// TODO: this returns an empty array for the following string: int(11) not null auto_increment
 		//		 on second thoughts, why is an auto_increment field being passed through?
-		
 		$pattern = '/^([\w()]+)\s?((?:not\s)?null)?\s?(default\s[\w\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
 		preg_match($pattern, $colSpec, $matches);
 		
-		/*if (isset($matches)) {
-			echo "sql:$colSpec <pre>";
-			print_r($matches);
-			echo '</pre>';
-		}*/
 		if(sizeof($matches)==0)
 			return '';
 			
@@ -586,7 +641,7 @@ class PostgreSQLDatabase extends SS_Database {
 	public function fieldList($table) {
 		//Query from http://www.alberton.info/postgresql_meta_info.html
 		//This gets us more information than we need, but I've included it all for the moment....
-		$fields = $this->query("SELECT ordinal_position, column_name, data_type, column_default, is_nullable, character_maximum_length, numeric_precision FROM information_schema.columns WHERE table_name = '$table' ORDER BY ordinal_position;");
+		$fields = $this->query("SELECT ordinal_position, column_name, data_type, column_default, is_nullable, character_maximum_length, numeric_precision, numeric_scale FROM information_schema.columns WHERE table_name = '$table' ORDER BY ordinal_position;");
 		
 		$output = array();
 		if($fields) foreach($fields as $field) {
@@ -638,7 +693,7 @@ class PostgreSQLDatabase extends SS_Database {
 					break;
 					
 				case 'numeric':
-					$output[$field['column_name']]='numeric(' . $field['numeric_precision'] . ')';
+					$output[$field['column_name']]='decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . $field['column_default'];
 					break;
 					
 				case 'integer':
@@ -695,7 +750,9 @@ class PostgreSQLDatabase extends SS_Database {
 				//Here we create a db-specific version of whatever index we need to create.
 				switch($indexSpec['type']){
 					case 'fulltext':
-						$indexSpec='(ts_' . $indexSpec['name'] . ')';
+						//We need to include the fields so if we change the columns it's indexing, but not the name,
+						//then the change will be picked up.
+						$indexSpec='(ts_' . $indexSpec['name'] . '_' . $indexSpec['value'] . ')';
 						break;
 					case 'unique':
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
@@ -955,6 +1012,33 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	/**
+	 * This will return the fields that the trigger is monitoring
+	 * @param string $trigger
+	 * 
+	 * @return array
+	 */
+	function triggerFieldsFromTrigger($trigger){
+		
+		if($trigger){
+			$tsvector='tsvector_update_trigger';
+			$ts_pos=strpos($trigger, $tsvector);
+			$details=trim(substr($trigger, $ts_pos+strlen($tsvector)), '();');
+			//Now split this into bits:
+			$bits=explode(',', $details);
+			
+			$fields=$bits[2];
+			
+			$field_bits=explode(',', str_replace('"', '', $fields));
+			$result=array();
+			foreach($field_bits as $field_bit)
+				$result[]=trim($field_bit);
+			
+			return $result;
+		} else
+			return false;
+	}
+	
+	/**
 	 * Return a boolean type-formatted string
 	 * 
 	 * @params array $values Contains a tokenised list of info about this data type
@@ -1018,8 +1102,8 @@ class PostgreSQLDatabase extends SS_Database {
 		}
 		
 		if($asDbValue)
-			return Array('data_type'=>'numeric', 'precision'=>'9');
-		else return "decimal($precision){$values['arrayValue']} $defaultValue";
+			return Array('data_type'=>'numeric', 'precision'=>$precision);
+		else return "decimal($precision){$values['arrayValue']}$defaultValue";
 	}
 	
 	/**
@@ -1196,7 +1280,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$columns=implode(', ', $columns);
 		
-		$fulltexts="\"ts_$name\" tsvector, ";
+		$fulltexts="\"ts_$name\" tsvector";
 		$triggerName="ts_{$tableName}_{$name}";
 		
 		$this->dropTrigger($triggerName, $tableName);
@@ -1204,7 +1288,7 @@ class PostgreSQLDatabase extends SS_Database {
 					ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
 					tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
 		
-		return Array('fulltexts'=>$fulltexts, 'triggers'=>$triggers);
+		return Array('name'=>$name, 'ts_name'=>"ts_{$name}", 'fulltexts'=>$fulltexts, 'triggers'=>$triggers);
 	}
 	
 	/**
@@ -1428,13 +1512,13 @@ class PostgreSQLDatabase extends SS_Database {
 				$showInSearch='';
 				
 			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
-			$query=singleton($row['table_name'])->extendedSql("\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
+			$query=singleton($row['table_name'])->extendedSql("\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
 			
 			
 			$query->select=$select[$row['table_name']];
 			$query->from['tsearch']=", to_tsquery('english', '$keywords') AS q";
 			
-			$query->select[]="ts_rank(\"{$row['column_name']}\", q) AS \"Relevance\"";
+			$query->select[]="ts_rank(\"{$row['table_name']}\".\"{$row['column_name']}\", q) AS \"Relevance\"";
 			
 			$query->orderby=null;
 			
