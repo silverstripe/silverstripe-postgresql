@@ -572,13 +572,16 @@ class PostgreSQLDatabase extends SS_Database {
 			$constraint_bits=explode('(', $matches[4]);
 			$constraint_values=trim($constraint_bits[2], ')');
 			$constraint_values_bits=explode(',', $constraint_values);
-			$default=trim($constraint_values[0], " '");
-			//Now go and convert anything that's not in this list to the first thing in the enum list
+			$default=trim($constraint_values_bits[0], " '");
+			
+			//Now go and convert anything that's not in this list to 'Page'
 			//We have to run this as a query, not as part of the alteration queries due to the way they are constructed.
 			$updateConstraint='';
 			$updateConstraint.="UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-			$updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-			$updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+			if($this->hasTable("{$tableName}_Live"))
+				$updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+			if($this->hasTable("{$tableName}_versions"))
+				$updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
 			
 			DB::query($updateConstraint);
 			 
@@ -702,11 +705,11 @@ class PostgreSQLDatabase extends SS_Database {
 					break;
 					
 				case 'numeric':
-					$output[$field['column_name']]='decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . $field['column_default'];
+					$output[$field['column_name']]='decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . (int)$field['column_default'];
 					break;
 					
 				case 'integer':
-					$output[$field['column_name']]='integer default ' . $field['column_default'];
+					$output[$field['column_name']]='integer default ' . (int)$field['column_default'];
 					break;
 					
 				case 'timestamp without time zone':
@@ -714,7 +717,7 @@ class PostgreSQLDatabase extends SS_Database {
 					break;
 					
 				case 'smallint':
-					$output[$field['column_name']]='smallint default ' . $field['column_default'];
+					$output[$field['column_name']]='smallint default ' . (int)$field['column_default'];
 					break;
 					
 				case 'time without time zone':
@@ -761,18 +764,18 @@ class PostgreSQLDatabase extends SS_Database {
 					case 'fulltext':
 						//We need to include the fields so if we change the columns it's indexing, but not the name,
 						//then the change will be picked up.
-						$indexSpec='(ts_' . $indexSpec['name'] . '_' . $indexSpec['value'] . ')';
+						$indexSpec='(' . $indexSpec['name'] . ',' . $indexSpec['value'] . ')';
 						break;
 					case 'unique':
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
 						break;
 					case 'hash':
-						$indexSpec='(' . $indexSpec['value'] . ')';
+						$indexSpec='using hash (' . $indexSpec['value'] . ')';
 						break;
 					case 'index':
 						//The default index is 'btree', which we'll use by default (below):
 					default:
-						$indexSpec='(' . $indexSpec['value'] . ')';
+						$indexSpec='using btree (' . $indexSpec['value'] . ')';
 						break;
 				}
 			}
@@ -1261,9 +1264,10 @@ class PostgreSQLDatabase extends SS_Database {
 		if(!isset($values['arrayValue']))
 			$values['arrayValue']='';
 			
+		//TODO: the DbValue result does not include the numeric_scale option (ie, the ,0 value in 4,0)
 		if($asDbValue)
-			return Array('data_type'=>'numeric', 'precision'=>'4');
-		else return "numeric(4){$values['arrayValue']}"; 
+			return Array('data_type'=>'decimal', 'precision'=>'4', 'default'=> (int)$values['default']);
+		else return "decimal(4,0){$values['arrayValue']}"; 
 	}
 	
 	function escape_character($escape=false){
