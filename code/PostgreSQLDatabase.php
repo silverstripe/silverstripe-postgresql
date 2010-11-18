@@ -568,10 +568,19 @@ class PostgreSQLDatabase extends SS_Database {
 			
 			// SET check constraint (The constraint HAS to be dropped)
 			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
-			//If you run into constraint row violation conflicts, here's how to reset it:
-			 //alter table "SiteTree" drop constraint "SiteTree_ClassName_check";
-			 //update "SiteTree" set "ClassName"='NewValue' WHERE "ClassName"='OldValue';
-			 //Repeat this for _Live and for _versions
+			//Take this new constraint and see what's outstanding from the target table:
+			$constraint_bits=explode('(', $matches[4]);
+			$constraint_values=trim($constraint_bits[2], ')');
+			$constraint_values_bits=explode(',', $constraint_values);
+			$default=trim($constraint_values[0], " '");
+			//Now go and convert anything that's not in this list to the first thing in the enum list
+			//We have to run this as a query, not as part of the alteration queries due to the way they are constructed.
+			$updateConstraint='';
+			$updateConstraint.="UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+			$updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+			$updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+			
+			DB::query($updateConstraint);
 			 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint)
