@@ -37,6 +37,12 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	private $database_original;
 	
+	/** 
+ 	* The database schema name. 
+ 	* @var string 
+ 	*/ 
+ 	private $schema; 
+ 	
 	/*
 	 * This holds the parameters that the original connection was created with,
 	 * so we can switch back to it if necessary (used for unit tests)
@@ -72,6 +78,15 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @var array
 	 */
 	private static $cached_constraints=array();
+	
+	/**
+	 * Override the language that tsearch uses.  By default it is 'english, but
+	 * could be any of the supported languages that can be found in the
+	 * pg_catalog.pg_ts_config table.
+	 * 
+	 * @var string
+	 */
+	private $search_language='english';
 	
 	/**
 	 * Connect to a PostgreSQL database.
@@ -130,6 +145,16 @@ class PostgreSQLDatabase extends SS_Database {
 			return false;
 		}
 		
+		// Set up the schema if required 
+ 		$schema = isset($parameters['schema']) ? $parameters['schema'] : $this->currentSchema(); 
+ 		// Edge-case - database with no schemas: 
+ 		if(!$schema) $schema = "public"; 
+                 
+ 		if(!$this->schemaExists($schema)) 
+ 			 $this->createSchema($schema);
+ 			  
+ 		$this->setSchema($schema); 
+ 	
 		return true;
 	}
 	/**
@@ -292,6 +317,74 @@ class PostgreSQLDatabase extends SS_Database {
 	public function allDatabaseNames() {
 		return $this->query("SELECT datname FROM pg_database WHERE datistemplate=false;")->column();
 	}
+	
+	/** 
+ 	* Returns true if the schema exists in the current database 
+ 	* @param string $name 
+ 	* @return boolean 
+ 	*/ 
+ 	public function schemaExists($name) { 
+ 		$SQL_name = pg_escape_string($this->dbConn, $name); 
+ 		return $this->query("SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname = '{$SQL_name}';")->first() ? true : false; 
+ 	}
+ 	 
+ 	/** 
+ 	* Creates a schema in the current database 
+ 	* @param string $name 
+ 	*/ 
+ 	public function createSchema($name) { 
+ 		$SQL_name = pg_escape_string($this->dbConn, $name); 
+ 		$this->query("CREATE SCHEMA \"{$SQL_name}\";"); 
+ 	} 
+ 	
+ 	/** 
+ 	* Drops a schema from the database. Use carefully! 
+ 	* @param string $name 
+ 	*/ 
+ 	public function dropSchema($name) { 
+ 		$SQL_name = pg_escape_string($this->dbConn, $name); 
+ 		$this->query("DROP SCHEMA \"{$SQL_name}\" CASCADE;"); 
+ 	} 
+ 		         
+ 	/** 
+ 	* Returns the name of the current schema in use 
+ 	*/ 
+ 	public function currentSchema() { 
+ 		return $this->query('SELECT current_schema()')->value(); 
+ 	} 
+ 	
+ 	/** 
+ 	* Utility method to manually set the schema to an alternative 
+ 	* Check existance & sets search path to the supplied schema name 
+ 	* @param string $schema 
+ 	*/ 
+ 	public function setSchema($schema) { 
+ 		if(!$this->schemaExists($schema)) 
+ 			$this->databaseError("Schema $schema does not exist"); 
+ 		$this->setSchemaSearchPath($schema); 
+ 	 	$this->schema = $schema; 
+ 	} 
+ 		         
+ 	/** 
+ 	* Override the schema search path. Search using the arguments supplied. 
+ 	* NOTE: The search path is normally set through setSchema() and only 
+ 	* one schema is selected. The facility to add more than one schema to  
+ 	* the search path is provided as an advanced PostgreSQL feature for raw  
+ 	* SQL queries. Sapphire cannot search for datamodel tables in alternate  
+ 	* schemas, so be wary of using alternate schemas within the ORM environment. 
+ 	* @param string $arg1 First schema to use 
+ 	* @param string $arg2 Second schema to use 
+ 	* @param string $argN Nth schema to use 
+ 	*/ 
+ 	public function setSchemaSearchPath() { 
+ 		if(func_num_args() == 0) 
+ 			$this->databaseError('At least one Schema must be supplied to set a search path.'); 
+	 	$args = array_values(func_get_args()); 
+	 	foreach($args as $key => $schema) 
+	 		$args[$key] = '"' . pg_escape_string($this->dbConn, $schema) . '"'; 
+	 	$args_SQL =implode(",", $args); 
+	 	$this->query("SET search_path TO {$args_SQL}"); 
+ 	} 
 	
 	public function createTable($tableName, $fields = null, $indexes = null, $options = null, $extensions = null) {
 		
@@ -907,8 +1000,9 @@ class PostgreSQLDatabase extends SS_Database {
 	public function indexList($table) {
 	
   		//Retrieve a list of indexes for the specified table
-		$indexes=DB::query("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE tablename='$table';");
-		
+		$schema_SQL = pg_escape_string($this->dbConn, $this->schema); 
+ 		$indexes=DB::query("SELECT tablename, indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename='$table' AND schemaname = '{$schema_SQL}';");
+ 		 
 		$indexList=Array();
   		foreach($indexes as $index) {
   			//We don't actually need the entire created command, just a few bits:
@@ -953,7 +1047,8 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @return array
 	 */
 	public function tableList() {
-		foreach($this->query("SELECT tablename FROM pg_tables WHERE tablename NOT ILIKE 'pg_%' AND tablename NOT ILIKE 'sql_%'") as $record) {
+		$schema_SQL = pg_escape_string($this->dbConn, $this->schema); 
+ 		foreach($this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND tablename NOT ILIKE 'pg_%' AND tablename NOT ILIKE 'sql_%'") as $record) {
 			//$table = strtolower(reset($record));
 			$table = reset($record);
 			$tables[$table] = $table;
@@ -964,7 +1059,8 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 	
 	function TableExists($tableName){
-		$result=$this->query("SELECT tablename FROM pg_tables WHERE tablename='$tableName';")->first();
+		$schema_SQL = pg_escape_string($this->dbConn, $this->schema); 
+ 		$result=$this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND  tablename='$tableName';")->first(); 
 		
 		if($result)
 			return true;
@@ -1001,7 +1097,9 @@ class PostgreSQLDatabase extends SS_Database {
 	 * A function to return the field names and datatypes for the particular table
 	 */
 	public function tableDetails($tableName){
-		$query="SELECT a.attname as \"Column\", pg_catalog.format_type(a.atttypid, a.atttypmod) as \"Datatype\" FROM pg_catalog.pg_attribute a WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attrelid = ( SELECT c.oid FROM pg_catalog.pg_class c LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname ~ '^($tableName)$' AND pg_catalog.pg_table_is_visible(c.oid));";
+		$schema_SQL = pg_escape_string($this->dbConn, $this->schema); 
+ 		$query="SELECT a.attname as \"Column\", pg_catalog.format_type(a.atttypid, a.atttypmod) as \"Datatype\" FROM pg_catalog.pg_attribute a WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attrelid = ( SELECT c.oid FROM pg_catalog.pg_class c LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname ~ '^($tableName)$' AND pg_catalog.pg_table_is_visible(c.oid) AND n.nspname = '{$schema_SQL}');";
+ 		 
 		$result=DB::query($query);
 		
 		$table=Array();
@@ -1295,11 +1393,12 @@ class PostgreSQLDatabase extends SS_Database {
 		
 		$fulltexts="\"ts_$name\" tsvector";
 		$triggerName="ts_{$tableName}_{$name}";
+		$language=$this->get_search_language();
 		
 		$this->dropTrigger($triggerName, $tableName);
 		$triggers="CREATE TRIGGER $triggerName BEFORE INSERT OR UPDATE
 					ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
-					tsvector_update_trigger(\"ts_$name\", 'pg_catalog.english', $columns);";
+					tsvector_update_trigger(\"ts_$name\", 'pg_catalog.$language', $columns);";
 		
 		return Array('name'=>$name, 'ts_name'=>"ts_{$name}", 'fulltexts'=>$fulltexts, 'triggers'=>$triggers);
 	}
@@ -1320,7 +1419,9 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Returns true if this table exists
 	 */
 	function hasTable($tableName) {
-		$result = $this->query("SELECT tablename FROM pg_tables WHERE tablename = '$tableName'");
+		$schema_SQL = pg_escape_string($this->dbConn, $this->schema); 
+ 		$result = $this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND tablename = '$tableName'"); 
+ 	
 		if ($result->numRecords() > 0) return true;
 		else return false;
 	}
@@ -1329,7 +1430,8 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Returns the SQL command to get all the tables in this database
 	 */
 	function allTablesSQL(){
-		return "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';";
+		$schema_SQL = pg_escape_string($this->dbConn, $this->schema); 
+ 		return "SELECT table_name FROM information_schema.tables WHERE table_schema='{$schema_SQL}' AND table_type='BASE TABLE';"; 
 	}
 	
 	/**
@@ -1527,9 +1629,8 @@ class PostgreSQLDatabase extends SS_Database {
 			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
 			$query=singleton($row['table_name'])->extendedSql("\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
 			
-			
 			$query->select=$select[$row['table_name']];
-			$query->from['tsearch']=", to_tsquery('english', '$keywords') AS q";
+			$query->from['tsearch']=", to_tsquery('" . $this->get_search_language() . "', '$keywords') AS q";
 			
 			$query->select[]="ts_rank(\"{$row['table_name']}\".\"{$row['column_name']}\", q) AS \"Relevance\"";
 			
@@ -1844,6 +1945,26 @@ class PostgreSQLDatabase extends SS_Database {
 	public function set($values){
 		user_error("PostGreSQL does not support multi-enum");
 		return "int";
+	}
+	
+	/**
+	 * Set the current language for the tsearch functions
+	 * 
+	 * @todo: somehow link this to the locale options?
+	 * 
+	 * @param string $lang
+	 */
+	public function set_search_language($lang){
+		$this->search_language=$lang;
+	}
+	
+	/**
+	 * Returns the current language for the tsearch functions
+	 * 
+	 * @param string $lang
+	 */
+	public function get_search_language(){
+		return $this->search_language;
 	}
 }
 
