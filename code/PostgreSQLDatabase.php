@@ -80,6 +80,15 @@ class PostgreSQLDatabase extends SS_Database {
 	private static $cached_constraints=array();
 	
 	/**
+	 * 
+	 * This holds a copy of all the queries that run through the function orderMoreSpecifically()
+	 * It appears to be a performance bottleneck at times.
+	 * 
+	 * @var array
+	 */
+	private static $cached_ordered_specifically=array();
+	
+	/**
 	 * Override the language that tsearch uses.  By default it is 'english, but
 	 * could be any of the supported languages that can be found in the
 	 * pg_catalog.pg_ts_config table.
@@ -1541,6 +1550,11 @@ class PostgreSQLDatabase extends SS_Database {
 	
 	protected function orderMoreSpecifically($select,$order) {
 		
+		//create a key so we can cache this result and quickly return it if we've done it before
+		$cache_key=serialize($select) . $order;
+		if(isset(self::$cached_ordered_specifically[$cache_key]))
+			return self::$cached_ordered_specifically[$cache_key];
+		
 		$altered = false;
 
 		// split expression into order terms
@@ -1565,7 +1579,11 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 		}
 
-		return implode(',', $terms);
+		//Hold this result in the cache
+		$result=implode(',', $terms);
+		self::$cached_ordered_specifically[$cache_key]=$result;
+		
+		return $result;
 	}
 
 	/*
