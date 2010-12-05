@@ -670,22 +670,24 @@ class PostgreSQLDatabase extends SS_Database {
 			
 			// SET check constraint (The constraint HAS to be dropped)
 			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
-			//Take this new constraint and see what's outstanding from the target table:
-			$constraint_bits=explode('(', $matches[4]);
-			$constraint_values=trim($constraint_bits[2], ')');
-			$constraint_values_bits=explode(',', $constraint_values);
-			$default=trim($constraint_values_bits[0], " '");
-			
-			//Now go and convert anything that's not in this list to 'Page'
-			//We have to run this as a query, not as part of the alteration queries due to the way they are constructed.
-			$updateConstraint='';
-			$updateConstraint.="UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-			if($this->hasTable("{$tableName}_Live"))
-				$updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-			if($this->hasTable("{$tableName}_versions"))
-				$updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-			
-			DB::query($updateConstraint);
+			if(isset($matches[4])) {
+				//Take this new constraint and see what's outstanding from the target table:
+				$constraint_bits=explode('(', $matches[4]);
+				$constraint_values=trim($constraint_bits[2], ')');
+				$constraint_values_bits=explode(',', $constraint_values);
+				$default=trim($constraint_values_bits[0], " '");
+
+				//Now go and convert anything that's not in this list to 'Page'
+				//We have to run this as a query, not as part of the alteration queries due to the way they are constructed.
+				$updateConstraint='';
+				$updateConstraint.="UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+				if($this->hasTable("{$tableName}_Live"))
+					$updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+				if($this->hasTable("{$tableName}_versions"))
+					$updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+
+				DB::query($updateConstraint);
+			}
 			 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint)
