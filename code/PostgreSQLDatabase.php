@@ -698,7 +698,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 				DB::query($updateConstraint);
 			}
-			
+
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint)
 				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
@@ -713,6 +713,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	public function renameTable($oldTableName, $newTableName) {
 		$this->query("ALTER TABLE \"$oldTableName\" RENAME TO \"$newTableName\"");
+		unset(self::$cached_fieldlists[$oldTableName]);
 	}
 
 	/**
@@ -721,6 +722,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @return boolean Return true if the table has integrity after the method is complete.
 	 */
 	public function checkAndRepairTable($tableName) {
+
 		$this->runTableCheckCommand("VACUUM FULL ANALYZE \"$tableName\"");
 		$this->runTableCheckCommand("REINDEX TABLE \"$tableName\"");
 		return true;
@@ -753,7 +755,7 @@ class PostgreSQLDatabase extends SS_Database {
 	/**
 	 * Change the database column name of the given field.
 	 *
-	 * @param string $tableName The name of the tbale the field is in.
+	 * @param string $tableName The name of the table the field is in.
 	 * @param string $oldName The name of the field to change.
 	 * @param string $newName The new name of the field
 	 */
@@ -761,6 +763,10 @@ class PostgreSQLDatabase extends SS_Database {
 		$fieldList = $this->fieldList($tableName);
 		if(array_key_exists($oldName, $fieldList)) {
 			$this->query("ALTER TABLE \"$tableName\" RENAME COLUMN \"$oldName\" TO \"$newName\"");
+
+			//Remove this from the cached list:
+			unset(self::$cached_fieldlists[$tableName]);
+
 		}
 	}
 
@@ -852,7 +858,26 @@ class PostgreSQLDatabase extends SS_Database {
 
 			self::$cached_fieldlists[$table]=$output;
 		}
+
 		return self::$cached_fieldlists[$table];
+	}
+
+	/**
+	 *
+	 * This allows the cached values for a table's field list to be erased.
+	 * If $tablename is empty, then the whole cache is erased.
+	 *
+	 * @param string $tableName
+	 *
+	 * @return boolean
+	 */
+	function clear_cached_fieldlist($tableName=false){
+		if($tableName!=false){
+			unset(self::$cached_fieldlists[$tableName]);
+		} else
+			self::$cached_fieldlists=array();
+
+		return true;
 	}
 
 	/**
@@ -1756,6 +1781,7 @@ class PostgreSQLDatabase extends SS_Database {
 			DB::query("ROLLBACK TO $savepoint;");
 		else
 			DB::query('ROLLBACK;');
+
 	}
 
 	/*
