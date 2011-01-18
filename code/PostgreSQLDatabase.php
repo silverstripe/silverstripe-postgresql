@@ -774,7 +774,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//Query from http://www.alberton.info/postgresql_meta_info.html
 		//This gets us more information than we need, but I've included it all for the moment....
 
-		if(!isset(self::$cached_fieldlists[$table])){
+		//if(!isset(self::$cached_fieldlists[$table])){
 			$fields = $this->query("SELECT ordinal_position, column_name, data_type, column_default, is_nullable, character_maximum_length, numeric_precision, numeric_scale FROM information_schema.columns WHERE table_name = '$table' ORDER BY ordinal_position;");
 
 			$output = array();
@@ -856,10 +856,11 @@ class PostgreSQLDatabase extends SS_Database {
 
 			}
 
-			self::$cached_fieldlists[$table]=$output;
-		}
+		//	self::$cached_fieldlists[$table]=$output;
+		//}
 
-		return self::$cached_fieldlists[$table];
+		//return self::$cached_fieldlists[$table];
+		return $output;
 	}
 
 	/**
