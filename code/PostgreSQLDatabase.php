@@ -1754,7 +1754,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Start a prepared transaction
 	 * See http://developer.postgresql.org/pgdocs/postgres/sql-set-transaction.html for details on transaction isolation options
 	 */
-	public function transactionStart($transaction_mode=false, $session_characteristics=false){
+	public function startTransaction($transaction_mode=false, $session_characteristics=false){
 		DB::query('BEGIN;');
 
 		if($transaction_mode)
