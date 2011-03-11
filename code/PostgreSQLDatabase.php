@@ -1749,6 +1749,13 @@ class PostgreSQLDatabase extends SS_Database {
 		else
 			return false;
 	}
+	
+	/**
+	 * @deprecated 1.0 Use transactionStart() (method required for 2.4.x)
+	 */
+	public function startTransaction($transaction_mode=false, $session_characteristics=false){
+		$this->transactionStart($transaction_mode, $session_characteristics);
+	}
 
 	/*
 	 * Start a prepared transaction
@@ -1783,6 +1790,13 @@ class PostgreSQLDatabase extends SS_Database {
 		else
 			DB::query('ROLLBACK;');
 
+	}
+	
+	/**
+	 * @deprecated 1.0 Use transactionEnd() (method required for 2.4.x)
+	 */
+	public function endTransaction(){
+		$this->transactionEnd();
 	}
 
 	/*
