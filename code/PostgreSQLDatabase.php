@@ -872,7 +872,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 *
 	 * @return boolean
 	 */
-	function clear_cached_fieldlist($tableName=false){
+	function clearCachedFieldlist($tableName=false){
 		if($tableName!=false){
 			unset(self::$cached_fieldlists[$tableName]);
 		} else
