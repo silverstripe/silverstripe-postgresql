@@ -1688,6 +1688,7 @@ class PostgreSQLDatabase extends SS_Database {
 				// by checking for its existence first
 				$fields = $this->fieldList($row['table_name']);
 				if(array_key_exists('ShowInSearch', $fields)) $showInSearch="AND \"ShowInSearch\"=1 ";
+				else $showInSearch='';
 			} else {
 				$showInSearch='';
 			}
