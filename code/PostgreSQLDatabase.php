@@ -1681,10 +1681,16 @@ class PostgreSQLDatabase extends SS_Database {
 		);
 
 		foreach($result as $row){
-			if($row['table_name']=='SiteTree')
+			if($row['table_name']=='SiteTree') {
 				$showInSearch="AND \"ShowInSearch\"=1 ";
-			else
+			} elseif($row['table_name']=='File') {
+				// File.ShowInSearch was added later, keep the database driver backwards compatible 
+				// by checking for its existence first
+				$fields = $this->fieldList($row['table_name']);
+				if(array_key_exists('ShowInSearch', $fields)) $showInSearch="AND \"ShowInSearch\"=1 ";
+			} else {
 				$showInSearch='';
+			}
 
 			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
 			$query=singleton($row['table_name'])->extendedSql("\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
