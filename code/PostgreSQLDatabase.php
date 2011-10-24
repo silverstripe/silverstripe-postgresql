@@ -872,7 +872,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 *
 	 * @return boolean
 	 */
-	function clear_cached_fieldlist($tableName=false){
+	function clearCachedFieldlist($tableName=false){
 		if($tableName!=false){
 			unset(self::$cached_fieldlists[$tableName]);
 		} else
@@ -1554,15 +1554,13 @@ class PostgreSQLDatabase extends SS_Database {
 	 * helper function in Database?
 	 */
 	public function sqlQueryToString(SQLQuery $sqlQuery) {
-		if (!$sqlQuery->from) return '';
 		$distinct = $sqlQuery->distinct ? "DISTINCT " : "";
 		if($sqlQuery->delete) {
 			$text = "DELETE ";
 		} else if($sqlQuery->select) {
 			$text = "SELECT $distinct" . implode(", ", $sqlQuery->select);
 		}
-		$text .= " FROM " . implode(" ", $sqlQuery->from);
-
+		if($sqlQuery->from) $text .= " FROM " . implode(" ", $sqlQuery->from);
 		if($sqlQuery->where) $text .= " WHERE (" . $sqlQuery->getFilter(). ")";
 		if($sqlQuery->groupby) $text .= " GROUP BY " . implode(", ", $sqlQuery->groupby);
 		if($sqlQuery->having) $text .= " HAVING ( " . implode(" ) AND ( ", $sqlQuery->having) . " )";
@@ -1683,10 +1681,17 @@ class PostgreSQLDatabase extends SS_Database {
 		);
 
 		foreach($result as $row){
-			if($row['table_name']=='SiteTree')
+			if($row['table_name']=='SiteTree') {
 				$showInSearch="AND \"ShowInSearch\"=1 ";
-			else
+			} elseif($row['table_name']=='File') {
+				// File.ShowInSearch was added later, keep the database driver backwards compatible 
+				// by checking for its existence first
+				$fields = $this->fieldList($row['table_name']);
+				if(array_key_exists('ShowInSearch', $fields)) $showInSearch="AND \"ShowInSearch\"=1 ";
+				else $showInSearch='';
+			} else {
 				$showInSearch='';
+			}
 
 			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
 			$query=singleton($row['table_name'])->extendedSql("\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
@@ -1749,6 +1754,13 @@ class PostgreSQLDatabase extends SS_Database {
 		else
 			return false;
 	}
+	
+	/**
+	 * @deprecated 1.0 Use transactionStart() (method required for 2.4.x)
+	 */
+	public function startTransaction($transaction_mode=false, $session_characteristics=false){
+		$this->transactionStart($transaction_mode, $session_characteristics);
+	}
 
 	/*
 	 * Start a prepared transaction
@@ -1783,6 +1795,13 @@ class PostgreSQLDatabase extends SS_Database {
 		else
 			DB::query('ROLLBACK;');
 
+	}
+	
+	/**
+	 * @deprecated 1.0 Use transactionEnd() (method required for 2.4.x)
+	 */
+	public function endTransaction(){
+		$this->transactionEnd();
 	}
 
 	/*
