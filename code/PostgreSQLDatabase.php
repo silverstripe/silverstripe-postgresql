@@ -1656,7 +1656,6 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @return object DataObjectSet of result pages
 	 */
 	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
-
 		//Fix the keywords to be ts_query compatitble:
 		//Spaces must have pipes
 		//@TODO: properly handle boolean operators here.
@@ -1677,7 +1676,7 @@ class PostgreSQLDatabase extends SS_Database {
 		// Make column selection lists
 		$select = array(
 			'SiteTree' => array("\"ClassName\"","\"SiteTree\".\"ID\"","\"ParentID\"","\"Title\"","\"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","NULL AS \"Filename\"", "NULL AS \"Name\"", "\"CanViewType\""),
-			'File' => array("\"ClassName\"","\"File\".\"ID\"","NULL AS \"ParentID\"","\"Title\"","NULL AS \"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","\"Filename\"","\"Name\"", "NULL AS \"CanViewType\""),
+			'File' => array("\"ClassName\"","\"File\".\"ID\"","0 AS \"ParentID\"","\"Title\"","NULL AS \"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","\"Filename\"","\"Name\"", "NULL AS \"CanViewType\""),
 		);
 
 		foreach($result as $row){
@@ -1694,7 +1693,12 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 
 			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
-			$query=singleton($row['table_name'])->extendedSql("\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch, '');
+			$where = "\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch;
+			if(class_exists('DataList')) {
+				$query = DataList::create($row['table_name'])->where($where, '')->dataQuery()->query();
+			} else {
+				$query = singleton($row['table_name'])->extendedSql($where, '');
+			}
 
 			$query->select=$select[$row['table_name']];
 			$query->from['tsearch']=", to_tsquery('" . $this->get_search_language() . "', '$keywords') AS q";
@@ -1706,8 +1710,6 @@ class PostgreSQLDatabase extends SS_Database {
 			//Add this query to the collection
 			$tables[] = $query->sql();
 		}
-
-		$doSet=new DataObjectSet();
 
 		$limit=$pageLength;
 		$offset=$start;
@@ -1725,13 +1727,21 @@ class PostgreSQLDatabase extends SS_Database {
 			$objects[] = new $record['ClassName']($record);
 			$totalCount++;
 		}
-		if(isset($objects)) $doSet = new DataObjectSet($objects);
-		else $doSet = new DataObjectSet();
 
-		$doSet->setPageLimits($start, $pageLength, $totalCount);
-		return $doSet;
-
-
+		if(class_exists('PaginatedList')) {
+			if(isset($objects)) $results = new ArrayList($objects);
+			else $results = new ArrayList();
+			$list = new PaginatedList($results);
+			$list->setPageStart($start);
+			$list->setPageLength($pageLength);
+			$list->setTotalItems($totalCount);
+			return $list;
+		} else {
+			if(isset($objects)) $results = new DataObjectSet($objects);
+			else $results = new DataObjectSet();
+			$results->setPageLimits($start, $pageLength, $current+1);
+			return $results;
+		}
 	}
 
 	/*
