@@ -230,7 +230,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$handle = pg_query($this->dbConn, $sql);
 
 		if(isset($_REQUEST['showqueries'])) {
-			$endtime = round(microtime(true) - $starttime * 1000, 1);
+			$endtime = round((microtime(true) - $starttime) * 1000, 1);
 			Debug::message("\n$sql\n{$endtime}ms\n", false);
 		}
 
