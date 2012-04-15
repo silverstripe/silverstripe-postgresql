@@ -173,6 +173,9 @@ class PostgreSQLDatabase extends SS_Database {
 
  		$this->setSchema($schema);
 
+		// Set the timezone if required.
+		if(isset($parameters['timezone'])) $this->query(sprintf("SET SESSION TIME ZONE '%s'", $parameters['timezone']));
+
 		return true;
 	}
 	/**
