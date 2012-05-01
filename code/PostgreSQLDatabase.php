@@ -1551,86 +1551,6 @@ class PostgreSQLDatabase extends SS_Database {
 		else return '';
 	}
 
-	/**
-	 * Convert a SQLQuery object into a SQL statement
-	 * @todo There is a lot of duplication between this and MySQLDatabase::sqlQueryToString().  Perhaps they could both call a common
-	 * helper function in Database?
-	 */
-	public function sqlQueryToString(SQLQuery $sqlQuery) {
-		$distinct = $sqlQuery->distinct ? "DISTINCT " : "";
-		if($sqlQuery->delete) {
-			$text = "DELETE ";
-		} else if($sqlQuery->select) {
-			$text = "SELECT $distinct" . implode(", ", $sqlQuery->select);
-		}
-		if($sqlQuery->from) $text .= " FROM " . implode(" ", $sqlQuery->from);
-		if($sqlQuery->where) $text .= " WHERE (" . $sqlQuery->getFilter(). ")";
-		if($sqlQuery->groupby) $text .= " GROUP BY " . implode(", ", $sqlQuery->groupby);
-		if($sqlQuery->having) $text .= " HAVING ( " . implode(" ) AND ( ", $sqlQuery->having) . " )";
-		if($sqlQuery->orderby) $text .= " ORDER BY " . $this->orderMoreSpecifically($sqlQuery->select,$sqlQuery->orderby);
-
-		if($sqlQuery->limit) {
-			$limit = $sqlQuery->limit;
-
-			// Pass limit as array or SQL string value
-			if(is_array($limit)) {
-
-				if(isset($limit['start']) && $limit['start']!='')
-					$text.=' OFFSET ' . $limit['start'];
-				if(isset($limit['limit']) && $limit['limit']!='')
-					$text.=' LIMIT ' . $limit['limit'];
-
-			} else {
-				if(strpos($sqlQuery->limit, ',')){
-					$limit=str_replace(',', ' LIMIT ',  $sqlQuery->limit);
-					$text .= ' OFFSET ' . $limit;
-				} else {
-					$text.=' LIMIT ' . $sqlQuery->limit;
-				}
-			}
-		}
-
-		return $text;
-	}
-
-	protected function orderMoreSpecifically($select,$order) {
-
-		//create a key so we can cache this result and quickly return it if we've done it before
-		$cache_key=serialize($select) . $order;
-		if(isset(self::$cached_ordered_specifically[$cache_key]))
-			return self::$cached_ordered_specifically[$cache_key];
-
-		$altered = false;
-
-		// split expression into order terms
-		$terms = explode(',', $order);
-
-		foreach($terms as $i => $term) {
-			$term = trim($term);
-
-			// check if table is unspecified
-			if(!preg_match('/\./', $term)) {
-				$direction = '';
-				if(preg_match('/( ASC)$|( DESC)$/i',$term)) list($term,$direction) = explode(' ', $term);
-
-				// find a match in the SELECT array and replace
-				foreach($select as $s) {
-					if(preg_match('/"[a-z0-9_]+"\.[\'"]' . $term . '[\'"]/i', trim($s))) {
-						$terms[$i] = $s . ' ' . $direction;
-						$altered = true;
-						break;
-					}
-				}
-			}
-		}
-
-		//Hold this result in the cache
-		$result=implode(',', $terms);
-		self::$cached_ordered_specifically[$cache_key]=$result;
-
-		return $result;
-	}
-
 	/*
 	 * This will return text which has been escaped in a database-friendly manner
 	 * Using PHP's addslashes method won't work in MSSQL
@@ -2123,4 +2043,3 @@ class PostgreSQLQuery extends SS_Query {
 
 }
 
-?>
