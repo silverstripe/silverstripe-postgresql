@@ -2024,22 +2024,12 @@ class PostgreSQLQuery extends SS_Query {
 	}
 
 	public function nextRecord() {
-		// Coalesce rather than replace common fields.
-		if($data = pg_fetch_row($this->handle)) {
-			foreach($data as $columnIdx => $value) {
-				$columnName = pg_field_name($this->handle, $columnIdx);
-				// $value || !$ouput[$columnName] means that the *last* occurring value is shown
-				// !$ouput[$columnName] means that the *first* occurring value is shown
-				if(isset($value) || !isset($output[$columnName])) {
-					$output[$columnName] = $value;
-				}
-			}
-			return $output;
+		if($data = pg_fetch_assoc($this->handle)) {
+			return $data;
 		} else {
 			return false;
 		}
 	}
-
 
 }
 
