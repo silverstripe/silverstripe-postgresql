@@ -1598,8 +1598,32 @@ class PostgreSQLDatabase extends SS_Database {
 
 		// Make column selection lists
 		$select = array(
-			'SiteTree' => array("\"ClassName\"","\"SiteTree\".\"ID\"","\"ParentID\"","\"Title\"","\"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","NULL AS \"Filename\"", "NULL AS \"Name\"", "\"CanViewType\""),
-			'File' => array("\"ClassName\"","\"File\".\"ID\"","0 AS \"ParentID\"","\"Title\"","NULL AS \"URLSegment\"","\"Content\"","\"LastEdited\"","\"Created\"","\"Filename\"","\"Name\"", "NULL AS \"CanViewType\""),
+			'SiteTree' => array(
+				"\"ClassName\"",
+				"\"SiteTree\".\"ID\"",
+				"\"ParentID\"",
+				"\"Title\"",
+				"\"URLSegment\"",
+				"\"Content\"",
+				"\"LastEdited\"",
+				"\"Created\"",
+				"NULL AS \"Filename\"",
+				"NULL AS \"Name\"",
+				"\"CanViewType\""
+			),
+			'File' => array(
+				"\"ClassName\"",
+				"\"File\".\"ID\"",
+				"0 AS \"ParentID\"",
+				"\"Title\"",
+				"NULL AS \"URLSegment\"",
+				"\"Content\"",
+				"\"LastEdited\"",
+				"\"Created\"",
+				"\"Filename\"",
+				"\"Name\"",
+				"NULL AS \"CanViewType\""
+			)
 		);
 
 		foreach($result as $row){
@@ -1617,18 +1641,21 @@ class PostgreSQLDatabase extends SS_Database {
 
 			//public function extendedSQL($filter = "", $sort = "", $limit = "", $join = "", $having = ""){
 			$where = "\"" . $row['table_name'] . "\".\"" . $row['column_name'] . "\" " .  $this->default_fts_search_method . ' q '  . $showInSearch;
-			if(class_exists('DataList')) {
-				$query = DataList::create($row['table_name'])->where($where, '')->dataQuery()->query();
-			} else {
-				$query = singleton($row['table_name'])->extendedSql($where, '');
+			$query = DataList::create($row['table_name'])->where($where, '')->dataQuery()->query();
+
+			$query->addFrom(array('tsearch' => ", to_tsquery('" . $this->get_search_language() . "', '$keywords') AS q"));
+			$query->setSelect(array());
+
+			foreach($select[$row['table_name']] as $clause) {
+				if(preg_match('/^(.*) +AS +"?([^"]*)"?/i', $clause, $matches)) {
+					$query->selectField($matches[1], $matches[2]);
+				} else {
+					$query->selectField($clause);
+				}
 			}
 
-			$query->select=$select[$row['table_name']];
-			$query->from['tsearch']=", to_tsquery('" . $this->get_search_language() . "', '$keywords') AS q";
-
-			$query->select[]="ts_rank(\"{$row['table_name']}\".\"{$row['column_name']}\", q) AS \"Relevance\"";
-
-			$query->orderby=null;
+			$query->selectField("ts_rank(\"{$row['table_name']}\".\"{$row['column_name']}\", q)", 'Relevance');
+			$query->setOrderBy(array());
 
 			//Add this query to the collection
 			$tables[] = $query->sql();
@@ -1651,20 +1678,13 @@ class PostgreSQLDatabase extends SS_Database {
 			$totalCount++;
 		}
 
-		if(class_exists('PaginatedList')) {
-			if(isset($objects)) $results = new ArrayList($objects);
-			else $results = new ArrayList();
-			$list = new PaginatedList($results);
-			$list->setPageStart($start);
-			$list->setPageLength($pageLength);
-			$list->setTotalItems($totalCount);
-			return $list;
-		} else {
-			if(isset($objects)) $results = new DataObjectSet($objects);
-			else $results = new DataObjectSet();
-			$results->setPageLimits($start, $pageLength, $current+1);
-			return $results;
-		}
+		if(isset($objects)) $results = new ArrayList($objects);
+		else $results = new ArrayList();
+		$list = new PaginatedList($results);
+		$list->setPageStart($start);
+		$list->setPageLength($pageLength);
+		$list->setTotalItems($totalCount);
+		return $list;
 	}
 
 	/*
