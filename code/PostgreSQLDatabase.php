@@ -548,7 +548,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//Pick up the new indexes here:
 		if($newIndexes){
 			foreach($newIndexes as $name=>$this_index){
-				if($this_index['type']=='fulltext'){
+				if(is_array($this_index) && $this_index['type']=='fulltext'){
 					$ts_details=$this->fulltext($this_index, $tableName, $name);
 					if(!isset($fieldList[$ts_details['ts_name']])){
 						$fulltexts.="ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
