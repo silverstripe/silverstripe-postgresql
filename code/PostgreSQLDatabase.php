@@ -428,7 +428,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$triggers='';
 		if($indexes){
 			foreach($indexes as $name=>$this_index){
-				if($this_index['type']=='fulltext'){
+				if(is_array($this_index) && $this_index['type']=='fulltext'){
 					$ts_details=$this->fulltext($this_index, $tableName, $name);
 					$fulltexts.=$ts_details['fulltexts'] . ', ';
 					$triggers.=$ts_details['triggers'];
