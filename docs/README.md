@@ -1,6 +1,6 @@
 # PostgreSQL Database Module
 
-SilverStripe now has tentative support for PostgreSQL ('Postgres'). This available though a module which you can use after completing a successful MySQL installation.
+SilverStripe now has tentative support for PostgreSQL ('Postgres') which is available though this module
 
 ## Requirements
 

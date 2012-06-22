@@ -953,6 +953,8 @@ class PostgreSQLDatabase extends SS_Database {
 				$indexSpec=trim($indexSpec, '()');
 				$bits=explode(',', $indexSpec);
 				$indexes="\"" . implode("\",\"", $bits) . "\"";
+				// if some of the indexes have already been quoted then we need to remove the suplus double quotes
+				$indexes = str_replace('""', '"', $indexes);
 
 				//One last check:
 				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='" . strtolower($tableCol) . "';")->first();
