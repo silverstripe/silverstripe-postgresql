@@ -11,12 +11,11 @@
 * PostgreSQL <8.3.0 may work if T-Search is manually installed
 *  Known to work on OS X Leopard, Windows Server 2008 R2 and Linux
 
-## Documentation
+## Installation
 
-Move the 'postgresql' folder to the root level of the project. You'll need to 
-create a database with the desired name manually. 
-
-Run dev/build and you should be set.
+ 1. Extract the contents so they reside as a **postgresql** directory inside your SilverStripe project code
+ 2. Open the installer by browsing to install.php, e.g. http://localhost/silverstripe/install.php
+ 3. Select PostgreSQL in the database list and enter your database details
 
 ## Usage Overview
 
