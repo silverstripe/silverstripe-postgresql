@@ -201,6 +201,10 @@ class PostgreSQLDatabase extends SS_Database {
 		return true;
 	}
 
+	public function supportsTimezoneOverride() {
+		return true;
+	}
+
 	/**
 	 * Get the version of PostgreSQL.
 	 * @return string
