@@ -234,7 +234,6 @@ class PostgreSQLDatabase extends SS_Database {
 			$starttime = microtime(true);
 		}
 
-		$sql = str_replace("\\", "_", $sql); 
 		$handle = pg_query($this->dbConn, $sql);
 
 		if(isset($_REQUEST['showqueries'])) {
