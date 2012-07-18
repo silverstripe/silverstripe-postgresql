@@ -947,7 +947,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 		if(!$asDbValue){
 
-			$tableCol= 'ix_' . $tableName . '_' . $indexName;
+			$tableCol= 'ix_' . str_replace("\\", "_", $tableName) . '_' . $indexName;
 			if(strlen($tableCol)>64){
 				$tableCol=substr($indexName, 0, 59) . rand(1000, 9999);
 			}
