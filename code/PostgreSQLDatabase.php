@@ -439,6 +439,7 @@ class PostgreSQLDatabase extends SS_Database {
 				}
 			}
 		}
+
 		if($indexes) foreach($indexes as $k => $v) $indexSchemas .= $this->getIndexSqlDefinition($tableName, $k, $v) . "\n";
 
 		//Do we need to create a tablespace for this item?
@@ -1094,7 +1095,7 @@ class PostgreSQLDatabase extends SS_Database {
   			$key=substr($value[1], 0, strpos($value[1], ')'));
   			$key=trim(trim(str_replace("\"", '', $key), '()'));
   			$indexList[$key]['indexname']=$index['indexname'];
-  			$indexList[$key]['spec']=$prefix . '(' . $key . ')';
+  			$indexList[$key]['spec']=$prefix . '("' . preg_replace('/ *, */','","',$key) . '")';
 
   		}
 
