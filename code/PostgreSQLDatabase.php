@@ -638,7 +638,7 @@ class PostgreSQLDatabase extends SS_Database {
 			//Check that clustering is not on this table, and if it is, remove it:
 
 			//This is really annoying.  We need the oid of this table:
-			$stats=DB::query("SELECT relid FROM pg_stat_user_tables WHERE relname='$tableName';")->first();
+			$stats=DB::query("SELECT relid FROM pg_stat_user_tables WHERE relname='" . $this->addslashes($tableName) . "';")->first();
 			$oid=$stats['relid'];
 
 			//Now we can run a long query to get the clustered status:
@@ -782,7 +782,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//This gets us more information than we need, but I've included it all for the moment....
 
 		//if(!isset(self::$cached_fieldlists[$table])){
-			$fields = $this->query("SELECT ordinal_position, column_name, data_type, column_default, is_nullable, character_maximum_length, numeric_precision, numeric_scale FROM information_schema.columns WHERE table_name = '$table' ORDER BY ordinal_position;");
+			$fields = $this->query("SELECT ordinal_position, column_name, data_type, column_default, is_nullable, character_maximum_length, numeric_precision, numeric_scale FROM information_schema.columns WHERE  table_name = '" . $this->addslashes($table) . "' ORDER BY ordinal_position;");
 
 			$output = array();
 			if($fields) foreach($fields as $field) {
@@ -867,6 +867,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//}
 
 		//return self::$cached_fieldlists[$table];
+		
 		return $output;
 	}
 
@@ -1061,7 +1062,7 @@ class PostgreSQLDatabase extends SS_Database {
 
   		//Retrieve a list of indexes for the specified table
 		$schema_SQL = pg_escape_string($this->dbConn, $this->schema);
- 		$indexes=DB::query("SELECT tablename, indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename='$table' AND schemaname = '{$schema_SQL}';");
+ 		$indexes=DB::query("SELECT tablename, indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename='" . $this->addslashes($table) . "' AND schemaname = '{$schema_SQL}';");
 
 		$indexList=Array();
   		foreach($indexes as $index) {
@@ -1121,7 +1122,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	function TableExists($tableName){
 		$schema_SQL = pg_escape_string($this->dbConn, $this->schema);
- 		$result=$this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND  tablename='$tableName';")->first();
+ 		$result=$this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND  tablename='" . $this->addslashes($tableName) . "';")->first();
 
 		if($result)
 			return true;
@@ -1482,7 +1483,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	function hasTable($tableName) {
 		$schema_SQL = pg_escape_string($this->dbConn, $this->schema);
- 		$result = $this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND tablename = '$tableName'");
+ 		$result = $this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND tablename = '" . $this->addslashes($tableName) . "'");
 
 		if ($result->numRecords() > 0) return true;
 		else return false;
