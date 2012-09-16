@@ -483,17 +483,15 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	public function alterTable($tableName, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null, $alteredOptions = null, $advancedOptions = null) {
 
-		$fieldSchemas = $indexSchemas = "";
 		$alterList = array();
-		if($newFields) foreach($newFields as $k => $v) $alterList[] .= "ADD \"$k\" $v";
+		if($newFields) foreach($newFields as $fieldName => $fieldSpec) {
+			$alterList[] = "ADD \"$fieldName\" $fieldSpec";
+		}
 
-		if($alteredFields) {
-			foreach($alteredFields as $k => $v) {
-
-				$val=$this->alterTableAlterColumn($tableName, $k, $v);
-				if($val!='')
-					$alterList[] .= $val;
-			}
+		if($alteredFields) foreach($alteredFields as $indexName => $indexSpec) {
+			$val=$this->alterTableAlterColumn($tableName, $indexName, $indexSpec);
+			if($val!='')
+				$alterList[] = $val;
 		}
 
 		//Do we need to do anything with the tablespaces?
@@ -510,15 +508,15 @@ class PostgreSQLDatabase extends SS_Database {
 		$fulltexts=false;
 		$drop_triggers=false;
 		$triggers=false;
-		if($alteredIndexes) foreach($alteredIndexes as $key=>$v) {
-			//We are only going to delete indexes which exist
-			$indexes=$this->indexList($tableName);
+		if($alteredIndexes) foreach($alteredIndexes as $indexName=>$indexSpec) {
+			
+			$indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
 
-			if($v['type']=='fulltext'){
+			if($indexSpec['type']=='fulltext') {
 				//For full text indexes, we need to drop the trigger, drop the index, AND drop the column
 
 				//Go and get the tsearch details:
-				$ts_details=$this->fulltext($v, $tableName, $key);
+				$ts_details = $this->fulltext($indexSpec, $tableName, $indexName);
 
 				//Drop this column if it already exists:
 
@@ -527,60 +525,41 @@ class PostgreSQLDatabase extends SS_Database {
 					$fulltexts.="ALTER TABLE \"{$tableName}\" DROP COLUMN \"{$ts_details['ts_name']}\";";
 				}
 
-				$drop_triggers.= 'DROP TRIGGER IF EXISTS ts_' . strtolower($tableName) . '_' . strtolower($key) . ' ON "' . $tableName . '";';
-				$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
-
-				//We'll execute these later:
+				// We'll execute these later:
+				$drop_triggers.= 'DROP TRIGGER IF EXISTS ts_' . strtolower($tableName) . '_' . strtolower($indexName) . ' ON "' . $tableName . '";';
 				$fulltexts.="ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
-				$triggers.=$ts_details['triggers'];
-			} else {
-				if(isset($indexes[$v['value']])){
-					if(is_array($v))
-						$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
-					else
-						$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower(trim($v, '()')) . ';';
-
-					$k=$v['value'];
-					$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
-					if($createIndex!==false)
-						$alterIndexList[] .= $createIndex;
-				}
+				$triggers .= $ts_details['triggers'];
 			}
+			
+			// Create index action (including fulltext)
+			$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($indexName) . ';';
+			$createIndex = $this->getIndexSqlDefinition($tableName, $indexName, $indexSpec);
+			if($createIndex!==false) $alterIndexList[] = $createIndex;
  		}
 
- 		//If we have a fulltext search request, then we need to create a special column
-		//for GiST searches
-		//Pick up the new indexes here:
-		if($newIndexes){
-			foreach($newIndexes as $name=>$this_index){
-				if(is_array($this_index) && $this_index['type']=='fulltext'){
-					$ts_details=$this->fulltext($this_index, $tableName, $name);
-					if(!isset($fieldList[$ts_details['ts_name']])){
-						$fulltexts.="ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
-						$triggers.=$ts_details['triggers'];
-					}
+		//Add the new indexes:
+		if($newIndexes) foreach($newIndexes as $indexName => $indexSpec){
+			
+			$indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
+			
+			//If we have a fulltext search request, then we need to create a special column
+			//for GiST searches
+			//Pick up the new indexes here:
+			if($indexSpec['type']=='fulltext') {
+				$ts_details=$this->fulltext($indexSpec, $tableName, $indexName);
+				if(!isset($fieldList[$ts_details['ts_name']])){
+					$fulltexts.="ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
+					$triggers.=$ts_details['triggers'];
 				}
 			}
-		}
-
-		//Add the new indexes:
-		if($newIndexes) foreach($newIndexes as $k=>$v){
+			
  			//Check that this index doesn't already exist:
  			$indexes=$this->indexList($tableName);
- 			if(!is_array($v)){
- 				$name=trim($v, '()');
- 			} else {
- 				$name=(isset($v['name'])) ? $v['name'] : $k;
- 			}
- 			if(isset($indexes[$name])){
- 				if(is_array($v)){
-					$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($v['value']) . ';';
-				} else {
-					$alterIndexList[] = 'DROP INDEX IF EXISTS ' . $indexes[$name]['indexname'] . ';';
-				}
+ 			if(isset($indexes[$indexName])){
+				$alterIndexList[] = 'DROP INDEX IF EXISTS ix_' . strtolower($tableName) . '_' . strtolower($indexName) . ';';
 			}
 
-			$createIndex=$this->getIndexSqlDefinition($tableName, $k, $v);
+			$createIndex=$this->getIndexSqlDefinition($tableName, $indexName, $indexSpec);
 			if($createIndex!==false)
  				$alterIndexList[] = $createIndex;
  		}
@@ -605,10 +584,8 @@ class PostgreSQLDatabase extends SS_Database {
 		}
 
 		//Create any fulltext columns and triggers here:
-		if($fulltexts)
-			$this->query($fulltexts);
-		if($drop_triggers)
-			$this->query($drop_triggers);
+		if($fulltexts) $this->query($fulltexts);
+		if($drop_triggers) $this->query($drop_triggers);
 
 		if($triggers) {
 			$this->query($triggers);
@@ -624,8 +601,7 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 		}
 
-		foreach($alterIndexList as $alteration)
-			$this->query($alteration);
+		foreach($alterIndexList as $alteration) $this->query($alteration);
 
 		//If we have a partitioning requirement, we do that here:
 		if($advancedOptions && isset($advancedOptions['partitions'])){
@@ -668,17 +644,17 @@ class PostgreSQLDatabase extends SS_Database {
 		$pattern = '/^([\w()]+)\s?((?:not\s)?null)?\s?(default\s[\w\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
 		preg_match($pattern, $colSpec, $matches);
 
-		if(sizeof($matches)==0)
-			return '';
+		if(sizeof($matches)==0) return '';
 
-		if($matches[1]=='serial8')
-			return '';
+		if($matches[1]=='serial8') return '';
 
 		if(isset($matches[1])) {
 			$alterCol = "ALTER COLUMN \"$colName\" TYPE $matches[1]\n";
 
 			// SET null / not null
-			if(!empty($matches[2])) $alterCol .= ",\nALTER COLUMN \"$colName\" SET $matches[2]";
+			if(!empty($matches[2])) {
+				$alterCol .= ",\nALTER COLUMN \"$colName\" SET $matches[2]";
+			}
 
 			// SET default (we drop it first, for reasons of precaution)
 			if(!empty($matches[3])) {
@@ -699,10 +675,12 @@ class PostgreSQLDatabase extends SS_Database {
 				//We have to run this as a query, not as part of the alteration queries due to the way they are constructed.
 				$updateConstraint='';
 				$updateConstraint.="UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-				if($this->hasTable("{$tableName}_Live"))
+				if($this->hasTable("{$tableName}_Live")) {
 					$updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
-				if($this->hasTable("{$tableName}_versions"))
+				}
+				if($this->hasTable("{$tableName}_versions")) {
 					$updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+				}
 
 				DB::query($updateConstraint);
 			}
@@ -793,7 +771,6 @@ class PostgreSQLDatabase extends SS_Database {
 						//Check to see if there's a constraint attached to this column:
 						//$constraint=$this->query("SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true) FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname='" . $table . '_' . $field['column_name'] . "_check' ORDER BY 1;")->first();
 						$constraint=$this->constraintExists($table . '_' . $field['column_name'] . '_check');
-						$enum='';
 						if($constraint){
 							//Now we need to break this constraint text into bits so we can see what we have:
 							//Examples:
@@ -882,10 +859,8 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @return boolean
 	 */
 	function clearCachedFieldlist($tableName=false){
-		if($tableName!=false){
-			unset(self::$cached_fieldlists[$tableName]);
-		} else
-			self::$cached_fieldlists=array();
+		if($tableName) unset(self::$cached_fieldlists[$tableName]);
+		else self::$cached_fieldlists=array();
 
 		return true;
 	}
@@ -898,8 +873,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	public function createIndex($tableName, $indexName, $indexSpec) {
 		$createIndex=$this->getIndexSqlDefinition($tableName, $indexName, $indexSpec);
-		if($createIndex!==false)
-			$this->query();
+		if($createIndex!==false) $this->query();
 	}
 
 	/*
@@ -907,6 +881,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * and turns it into a proper string.
 	 * Some indexes may be arrays, such as fulltext and unique indexes, and this allows database-specific
 	 * arrays to be created.
+	 * @see parseIndexSpec() for approximate inverse
 	 */
 	public function convertIndexSpec($indexSpec, $asDbValue=false, $table=''){
 
@@ -915,9 +890,7 @@ class PostgreSQLDatabase extends SS_Database {
 				//Here we create a db-specific version of whatever index we need to create.
 				switch($indexSpec['type']){
 					case 'fulltext':
-						//We need to include the fields so if we change the columns it's indexing, but not the name,
-						//then the change will be picked up.
-						$indexSpec='(' . $indexSpec['name'] . ',' . $indexSpec['value'] . ')';
+						$indexSpec='fulltext (' . $indexSpec['value'] . ')';
 						break;
 					case 'unique':
 						$indexSpec='unique (' . $indexSpec['value'] . ')';
@@ -937,6 +910,81 @@ class PostgreSQLDatabase extends SS_Database {
 		}
 		return $indexSpec;
 	}
+	
+	/**
+	 * Splits a spec string safely, considering quoted columns, whitespace, 
+	 * and cleaning brackets
+	 * @param string $spec The input index specification
+	 * @return array List of columns in the spec
+	 */
+	function explodeColumnString($spec) {
+		// Remove any leading/trailing brackets and outlying modifiers
+		// E.g. 'unique (Title, "QuotedColumn");' => 'Title, "QuotedColumn"'
+		$containedSpec = preg_replace('/(.*\(\s*)|(\s*\).*)/', '', $spec);
+		
+		// Split potentially quoted modifiers
+		// E.g. 'Title, "QuotedColumn"' => array('Title', 'QuotedColumn')
+		return preg_split('/"?\s*,\s*"?/', trim($containedSpec, '(") '));
+	}
+	
+	/**
+	 * Builds a properly quoted column list from an array
+	 * @param array $columns List of columns to implode
+	 * @return string A properly quoted list of column names
+	 */
+	function implodeColumnList($columns) {
+		if(empty($columns)) return '';
+		return '"' . implode('","', $columns) . '"';
+	}
+	
+	/**
+	 * Given an index specification in the form of a string ensure that each
+	 * column name is property quoted, stripping brackets
+	 * @param string $spec The input specification
+	 * @return string The properly quoted column list
+	 */
+	function quoteColumnSpecString($spec) {
+		$bits = $this->explodeColumnString($spec);
+		return $this->implodeColumnList($bits);
+	}
+	
+	/**
+	 * Given an index spec determines the index type
+	 * @param type $spec
+	 * @return string 
+	 */
+	function determineIndexType($spec) {
+		// check array spec
+		if(is_array($spec) && isset($spec['type'])) {
+			return $spec['type'];
+		} elseif (!is_array($spec) && preg_match('/(?<type>\w+)\s*\(/', $spec, $matchType)) {
+			return strtolower($matchType['type']);
+		} else {
+			return 'index';
+		}
+	}
+	
+	/**
+	 * Converts an array or string index spec into a universally useful array
+	 * @see convertIndexSpec() for approximate inverse
+	 * @param string|array $spec
+	 * @return array The resulting spec array with the required fields name, type, and value
+	 */
+	function parseIndexSpec($name, $spec){
+		
+		// Do minimal cleanup on any already parsed spec
+		if(is_array($spec)) {
+			$spec['value'] = $this->quoteColumnSpecString($spec['value']);
+			return $spec;
+		}
+		
+		// Nicely formatted spec!
+		return array(
+			'name' => $name,
+			'value' => $this->quoteColumnSpecString($spec),
+			'type' => $this->determineIndexType($spec)
+		);
+	}
 
 	protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec, $asDbValue=false) {
 
@@ -946,86 +994,60 @@ class PostgreSQLDatabase extends SS_Database {
 		//NOTE: it is possible for *_renamed tables to have indexes whose names are not updates
 		//Therefore, we now check for the existance of indexes before we create them.
 		//This is techically a bug, since new tables will not be indexed.
-
-		if(!$asDbValue){
-
-			$tableCol= 'ix_' . str_replace("\\", "_", $tableName) . '_' . $indexName;
-			if(strlen($tableCol)>64){
-				$tableCol=substr($indexName, 0, 59) . rand(1000, 9999);
-			}
-
-			//It is possible to specify indexes through strings:
-			if(!is_array($indexSpec)){
-				$indexSpec=trim($indexSpec, '()');
-				$bits=explode(',', $indexSpec);
-				$indexes="\"" . implode("\",\"", $bits) . "\"";
-				// if some of the indexes have already been quoted then we need to remove the suplus double quotes
-				$indexes = str_replace('""', '"', $indexes);
-
-				//One last check:
-				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='" . strtolower($tableCol) . "';")->first();
-				if(!$existing)
-					return "create index $tableCol ON \"" . $tableName . "\" (" . $indexes . ");";
-				else
-					return false;
-			} else {
-
-				//Arrays offer much more flexibility and many more options:
-
-				//Misc options first:
-				$fillfactor=$where='';
-				if(isset($indexSpec['fillfactor']))
-					$fillfactor='WITH (FILLFACTOR = ' . $indexSpec['fillfactor'] . ')';
-				if(isset($indexSpec['where']))
-					$where='WHERE ' . $indexSpec['where'];
-
-				//Fix up the value entry to be quoted:
-				$value_bits=explode(',', $indexSpec['value']);
-				$new_values=Array();
-				foreach($value_bits as $value){
-					$new_values[]="\"" . trim($value, ' "') . "\"";
-				}
-				$indexSpec['value']=implode(',', $new_values);
-
-				//One last check:
-				$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='" . strtolower($tableCol) . "';");
-				if(!$existing->first()){
-					//create a type-specific index
-					//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made
-					switch($indexSpec['type']){
-						case 'fulltext':
-							$spec="create index $tableCol ON \"" . $tableName . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $indexName . "\") $fillfactor $where";
-							break;
-
-						case 'unique':
-							$spec="create unique index $tableCol ON \"" . $tableName . "\" (" . $indexSpec['value'] . ") $fillfactor $where";
-							break;
-
-						case 'btree':
-							$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (" . $indexSpec['value'] . ") $fillfactor $where";
-							break;
-
-						case 'hash':
-							//NOTE: this is not a recommended index type
-							$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (" . $indexSpec['value'] . ") $fillfactor $where";
-							break;
-
-						case 'index':
-							//'index' is the same as default, just a normal index with the default type decided by the database.
-						default:
-							$spec="create index $tableCol ON \"" . $tableName . "\" (" . $indexSpec['value'] . ") $fillfactor $where";
-					}
-
-					return trim($spec) . ';';
-				} else {
-
-					return false;
-				}
-			}
-		} else {
+		
+		// If requesting the definition rather than the DDL
+		if($asDbValue) {
 			$indexName=trim($indexName, '()');
 			return $indexName;
 		}
+
+		// Determine index name and check for existence
+		$tableCol= 'ix_' . str_replace("\\", "_", $tableName) . '_' . $indexName;
+		if(strlen($tableCol)>64){
+			$tableCol=substr($indexName, 0, 59) . rand(1000, 9999);
+		}
+		$existing=DB::query("SELECT tablename FROM pg_indexes WHERE indexname='" . strtolower($tableCol) . "';")->first();
+		if($existing) return false;
+
+		// Consolidate/Cleanup spec into array format
+		$indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
+		
+		//Misc options first:
+		$fillfactor=$where='';
+		if(isset($indexSpec['fillfactor'])) {
+			$fillfactor='WITH (FILLFACTOR = ' . $indexSpec['fillfactor'] . ')';
+		}
+		if(isset($indexSpec['where'])) {
+			$where='WHERE ' . $indexSpec['where'];
+		}
+
+		//create a type-specific index
+		//NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made
+		switch($indexSpec['type']){
+			case 'fulltext':
+				// @see fulltext() for the definition of the trigger that ts_$IndexName uses for fulltext searching
+				$spec="create index $tableCol ON \"" . $tableName . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $indexName . "\") $fillfactor $where";
+				break;
+
+			case 'unique':
+				$spec="create unique index $tableCol ON \"" . $tableName . "\" (" . $indexSpec['value'] . ") $fillfactor $where";
+				break;
+
+			case 'btree':
+				$spec="create index $tableCol ON \"" . $tableName . "\" USING btree (" . $indexSpec['value'] . ") $fillfactor $where";
+				break;
+
+			case 'hash':
+				//NOTE: this is not a recommended index type
+				$spec="create index $tableCol ON \"" . $tableName . "\" USING hash (" . $indexSpec['value'] . ") $fillfactor $where";
+				break;
+
+			case 'index':
+				//'index' is the same as default, just a normal index with the default type decided by the database.
+			default:
+				$spec="create index $tableCol ON \"" . $tableName . "\" (" . $indexSpec['value'] . ") $fillfactor $where";
+		}
+		return trim($spec) . ';';
 	}
 
 	function getDbSqlDefinition($tableName, $indexName, $indexSpec){
@@ -1067,29 +1089,34 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$indexList=Array();
   		foreach($indexes as $index) {
+			
   			//We don't actually need the entire created command, just a few bits:
   			$prefix='';
 
   			//Check for uniques:
-  			if(substr($index['indexdef'], 0, 13)=='CREATE UNIQUE')
+  			if(substr($index['indexdef'], 0, 13)=='CREATE UNIQUE') {
   				$prefix='unique ';
+			}
 
   			//check for hashes, btrees etc:
-  			if(strpos(strtolower($index['indexdef']), 'using hash ')!==false)
+  			if(strpos(strtolower($index['indexdef']), 'using hash ')!==false) {
   				$prefix='using hash ';
+			}
 
   			//TODO: Fix me: btree is the default index type:
   			//if(strpos(strtolower($index['indexdef']), 'using btree ')!==false)
   			//	$prefix='using btree ';
 
-  			if(strpos(strtolower($index['indexdef']), 'using rtree ')!==false)
+  			if(strpos(strtolower($index['indexdef']), 'using rtree ')!==false) {
   				$prefix='using rtree ';
+			}
 
   			$value=explode(' ', substr($index['indexdef'], strpos($index['indexdef'], ' USING ')+7));
 
   			if(sizeof($value)>2){
-	  			for($i=2; $i<sizeof($value); $i++)
+	  			for($i=2; $i<sizeof($value); $i++) {
 	  				$value[1].=$value[$i];
+				}
   			}
 
   			$key=substr($value[1], 0, strpos($value[1], ')'));
@@ -1121,15 +1148,16 @@ class PostgreSQLDatabase extends SS_Database {
 		return $tables;
 	}
 
+	/**
+	 * Determines if a table exists
+	 * @param string $tableName
+	 * @return boolean
+	 */
 	function TableExists($tableName){
 		$schema_SQL = pg_escape_string($this->dbConn, $this->schema);
  		$result=$this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND  tablename='" . $this->addslashes($tableName) . "';")->first();
 
-		if($result)
-			return true;
-		else
-			return false;
-
+		return !empty($result);
 	}
 
 	/**
@@ -1449,11 +1477,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	function fulltext($this_index, $tableName, $name){
 		//For full text search, we need to create a column for the index
-		$columns=explode(',', $this_index['value']);
-		for($i=0; $i<sizeof($columns);$i++)
-			$columns[$i]="\"" . trim($columns[$i]) . "\"";
-
-		$columns=implode(', ', $columns);
+		$columns = $this->quoteColumnSpecString($this_index['value']);
 
 		$fulltexts="\"ts_$name\" tsvector";
 		$triggerName="ts_{$tableName}_{$name}";
