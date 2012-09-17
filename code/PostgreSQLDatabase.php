@@ -1779,6 +1779,7 @@ class PostgreSQLDatabase extends SS_Database {
 		if(isset($objects)) $results = new ArrayList($objects);
 		else $results = new ArrayList();
 		$list = new PaginatedList($results);
+		$list->setLimitItems(false);
 		$list->setPageStart($start);
 		$list->setPageLength($pageLength);
 		$list->setTotalItems($totalCount);
