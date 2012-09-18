@@ -482,11 +482,10 @@ class PostgreSQLDatabase extends SS_Database {
 	 */
 	function buildPostgresIndexName($tableName, $indexName, $prefix = 'ix') {
 
-		// Replace namespace character
-		$tableNameSafe = str_replace("\\", "_", $tableName);
-
 		// Assume all indexes also contain the table name
-		$indexNamePG = "{$prefix}_{$tableNameSafe}_{$indexName}";
+		// MD5 the table/index name combo to keep it to a fixed length.
+		// Exclude the prefix so that the trigger name can be easily generated from the index name
+		$indexNamePG = "{$prefix}_" . md5("$tableName}_{$indexName}");
 
 		// Limit to 63 characters
 		if (strlen($indexNamePG) > 63)
@@ -940,7 +939,7 @@ class PostgreSQLDatabase extends SS_Database {
 				}
 			}
 		} else {
-			$indexSpec='ix_' . $table . '_' . $indexSpec;
+			$indexSpec = $this->buildPostgresIndexName($table, $indexSpec);
 		}
 		return $indexSpec;
 	}
@@ -1150,15 +1149,9 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$indexList=Array();
   		foreach($indexes as $index) {
-			
-			// Determine the name of the index
-			if (stristr($index['indexname'], '_pkey')) {
-				$indexName = 'ID';
-			} else {
-				// Extract index name by splitting the ix_TableName_ from the start of the name
-				$indexNamePrefix = $this->buildPostgresIndexName($table, '');
-				$indexName = substr($index['indexname'], strlen($indexNamePrefix));
-			}
+  			// Key for the indexList array.  Differs from other DB implementations, which is why
+  			// requireIndex() needed to be overridden
+  			$indexName = $index['indexname']; 
 
   			//We don't actually need the entire created command, just a few bits:
   			$prefix='';
@@ -1185,7 +1178,7 @@ class PostgreSQLDatabase extends SS_Database {
 			if (stristr($index['indexdef'], 'using gin')) {
 				$prefix = 'fulltext ';
 				// Extract trigger information from postgres
-				$triggerName = $this->buildPostgresTriggerName($table, $indexName);
+				$triggerName = preg_replace('/^ix_/', 'ts_', $index['indexname']);
 				$columns = $this->extractTriggerColumns($triggerName);
 				$columnString = $this->implodeColumnList($columns);
 			} else {
@@ -1198,6 +1191,64 @@ class PostgreSQLDatabase extends SS_Database {
 
   		return isset($indexList) ? $indexList : null;
 
+	}
+
+	/**
+	 * Generate the given index in the database, modifying whatever already exists as necessary.
+	 * 
+	 * The keys of the array are the names of the index.
+	 * The values of the array can be one of:
+	 *  - true: Create a single column index on the field named the same as the index.
+	 *  - array('type' => 'index|unique|fulltext', 'value' => 'FieldA, FieldB'): This gives you full
+	 *    control over the index.
+	 * 
+	 * @param string $table The table name.
+	 * @param string $index The index name.
+	 * @param string|boolean $spec The specification of the index. See requireTable() for more information.
+	 */
+	function requireIndex($table, $index, $spec) {
+		$newTable = false;
+		
+		//DB Abstraction: remove this ===true option as a possibility?
+		if($spec === true) {
+			$spec = "(\"$index\")";
+		}
+		
+		//Indexes specified as arrays cannot be checked with this line: (it flattens out the array)
+		if(!is_array($spec)) {
+			$spec = preg_replace('/\s*,\s*/', ',', $spec);
+        }
+
+		if(!isset($this->tableList[strtolower($table)])) $newTable = true;
+
+		if(!$newTable && !isset($this->indexList[$table])) {
+			$this->indexList[$table] = $this->indexList($table);
+		}
+						
+		//Fix up the index for database purposes
+		$index=DB::getConn()->getDbSqlDefinition($table, $index, null, true);
+		
+		//Fix the key for database purposes
+		$index_alt = $this->buildPostgresIndexName($table, $index);
+				
+		if(!$newTable) {
+			if(isset($this->indexList[$table][$index_alt])) {
+				if(is_array($this->indexList[$table][$index_alt])) {
+					$array_spec = $this->indexList[$table][$index_alt]['spec'];
+				} else {
+					$array_spec = $this->indexList[$table][$index_alt];
+				}
+			}
+		}
+		
+		if($newTable || !isset($this->indexList[$table][$index_alt])) {
+			$this->transCreateIndex($table, $index, $spec);
+			$this->alterationMessage("Index $table.$index: created as " . DB::getConn()->convertIndexSpec($spec),"created");
+		} else if($array_spec != DB::getConn()->convertIndexSpec($spec)) {
+			$this->transAlterIndex($table, $index, $spec);
+			$spec_msg=DB::getConn()->convertIndexSpec($spec);
+			$this->alterationMessage("Index $table.$index: changed to $spec_msg <i style=\"color: #AAA\">(from {$array_spec})</i>","changed");			
+		}
 	}
 
 	/**
@@ -1933,7 +1984,7 @@ class PostgreSQLDatabase extends SS_Database {
 						if(isset($this_index['where']))
 							$where='WHERE ' . $this_index['where'];
 
-						DB::query("CREATE INDEX \"ix_{$partition_name}_{$this_index['name']}\" ON \"" . $partition_name . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $name . "\") $fillfactor $where");
+						DB::query("CREATE INDEX \"" . $this->buildPostgresIndexName($partition_name, $this_index['name'])  . "\" ON \"" . $partition_name . "\" USING " . $this->default_fts_cluster_method . "(\"ts_" . $name . "\") $fillfactor $where");
 						$ts_details=$this->fulltext($this_index, $partition_name, $name);
 						DB::query($ts_details['triggers']);
 					} else {
