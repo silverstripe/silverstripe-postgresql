@@ -1117,23 +1117,11 @@ class PostgreSQLDatabase extends SS_Database {
 			"SELECT tgargs FROM pg_catalog.pg_trigger WHERE tgname='%s'", $this->addslashes($triggerName)
 		))->first();
 
-		// Trigger columns will be extracted in an ugly hex format with null-
-		// terminated strings, needs some coaxing into a readable format
-		$tgargsHex = $trigger['tgargs'];
-		$tgargs = array();
-		$tgarg = '';
-		for ($i = 0; $i < strlen($tgargsHex); $i+=2) {
-			$hexChar = substr($tgargsHex, $i, 2);
-			if($hexChar == '00') {
-				$tgargs[] = $tgarg;
-				$tgarg = '';
-			} else {
-				$tgarg .= chr(hexdec($hexChar));
-			}
-		}
+		$argList = explode('\000', $trigger['tgargs']);
+		array_pop($argList);
 
 		// Drop first two arguments (trigger name and config name) and implode into nice list
-		return array_slice($tgargs, 2);
+		return array_slice($argList, 2);
 	}
 
 	/**
