@@ -1117,9 +1117,26 @@ class PostgreSQLDatabase extends SS_Database {
 			"SELECT tgargs FROM pg_catalog.pg_trigger WHERE tgname='%s'", $this->addslashes($triggerName)
 		))->first();
 
-		$argList = explode('\000', $trigger['tgargs']);
-		array_pop($argList);
-
+		// Option 1: output as a string
+		if(strpos($trigger['tgargs'],'\000') !== false) {
+			$argList = explode('\000', $trigger['tgargs']);
+			array_pop($argList);
+			
+		// Option 2: hex-encoded (not sure why this happens, depends on PGSQL config)
+		} else {
+			$bytes = str_split($trigger['tgargs'],2);
+			$argList = array();
+			$nextArg = "";
+			foreach($bytes as $byte) {
+				if($byte == "00") {
+					$argList[] = $nextArg;
+					$nextArg = "";
+				} else {
+					$nextArg .= chr(hexdec($byte));
+				}
+			}
+		}
+			
 		// Drop first two arguments (trigger name and config name) and implode into nice list
 		return array_slice($argList, 2);
 	}
