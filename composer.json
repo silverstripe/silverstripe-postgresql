@@ -1,0 +1,17 @@
+{
+	"name": "silverstripe/postgresql",
+	"description": "SilverStripe now has tentative support for PostgreSQL ('Postgres')",
+	"type": "silverstripe-module",
+	"keywords": ["silverstripe", "postgresql", "database"],
+	"authors": [
+	{
+		"name": "sam minnee",
+		"email": "sam@silverstripe.com"
+	}
+	],
+
+	"require":
+	{
+		"silverstripe/framework": "2.4"
+	}
+}
