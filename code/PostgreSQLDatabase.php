@@ -485,7 +485,7 @@ class PostgreSQLDatabase extends SS_Database {
 		// Assume all indexes also contain the table name
 		// MD5 the table/index name combo to keep it to a fixed length.
 		// Exclude the prefix so that the trigger name can be easily generated from the index name
-		$indexNamePG = "{$prefix}_" . md5("$tableName}_{$indexName}");
+		$indexNamePG = "{$prefix}_" . md5("{$tableName}_{$indexName}");
 
 		// Limit to 63 characters
 		if (strlen($indexNamePG) > 63)
