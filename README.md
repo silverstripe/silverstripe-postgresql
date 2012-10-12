@@ -6,7 +6,7 @@
 
 ## Requirements
 
-* SilverStripe 2.4
+* SilverStripe 3.0
 * PostgreSQL 8.3.x or greater must be installed
 * PostgreSQL <8.3.0 may work if T-Search is manually installed
 *  Known to work on OS X Leopard, Windows Server 2008 R2 and Linux
