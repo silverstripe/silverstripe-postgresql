@@ -1742,7 +1742,7 @@ class PostgreSQLDatabase extends SS_Database {
 		} else {
 			if(isset($objects)) $results = new DataObjectSet($objects);
 			else $results = new DataObjectSet();
-			$results->setPageLimits($start, $pageLength, $current+1);
+			$results->setPageLimits($start, $pageLength, $totalCount);
 			return $results;
 		}
 	}
