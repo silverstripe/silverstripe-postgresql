@@ -1264,7 +1264,7 @@ class PostgreSQLDatabase extends SS_Database {
 	public function tableList() {
 		$schema_SQL = pg_escape_string($this->dbConn, $this->schema);
 		$tables=array();
-		foreach($this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND tablename NOT ILIKE 'pg\_%' AND tablename NOT ILIKE 'sql\_%'") as $record) {
+		foreach($this->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{$schema_SQL}' AND tablename NOT ILIKE 'pg\\\_%' AND tablename NOT ILIKE 'sql\\\_%'") as $record) {
 			//$table = strtolower(reset($record));
 			$table = reset($record);
 			$tables[$table] = $table;
