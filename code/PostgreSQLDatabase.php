@@ -147,21 +147,25 @@ class PostgreSQLDatabase extends SS_Database {
 		if(self::$check_database_exists) {
 			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
 
-			if(!$this->databaseExists($dbName))
+			if(!$this->dbConn) {
+				throw new ErrorException("Couldn't connect to PostgreSQL database");
+			}
+
+			if(!$this->databaseExists($dbName)) {
 				$this->createDatabase($dbName);
+			}
 		}
 
 		//Now we can be sure that this database exists, so we can connect to it
 		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbName . $username . $password);
 
+		if(!$this->dbConn) {
+			throw new ErrorException("Couldn't connect to PostgreSQL database");
+		}
+			
 		//By virtue of getting here, the connection is active:
 		$this->active=true;
 		$this->database = $dbName;
-
-		if(!$this->dbConn) {
-			$this->databaseError("Couldn't connect to PostgreSQL database");
-			return false;
-		}
 
 		// Set up the schema if required
  		$schema = isset($parameters['schema']) ? $parameters['schema'] : $this->currentSchema();
