@@ -161,5 +161,16 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 			'alreadyExists' => $alreadyExists
 		);
 	}
-
+	
+	/**
+	 * Ensure we have permissions to alter tables.
+	 * 
+	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
+	 * @return array Result - e.g. array('okay' => true, 'applies' => true), where applies is whether
+	 * the test is relevant for the database
+	 */
+	public function requireDatabaseAlterPermissions($databaseConfig) {
+		return array('success' => true, 'applies' => false);	
+	}
+	 
 }
