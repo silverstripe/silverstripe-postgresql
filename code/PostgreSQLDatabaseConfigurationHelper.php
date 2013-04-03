@@ -8,71 +8,65 @@
  * @package postgresql
  */
 class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelper {
-
+	
 	/**
-	 * Ensure that the database function pg_connect
-	 * is available. If it is, we assume the PHP module for this
-	 * database has been setup correctly.
+	 * Create a connection of the appropriate type
 	 * 
-	 * @param array $databaseConfig Associative array of database configuration, e.g. "server", "username" etc
-	 * @return boolean
+	 * @param array $databaseConfig
+	 * @param string $error Error message passed by value
+	 * @return mixed|null Either the connection object, or null if error
 	 */
-	public function requireDatabaseFunctions($databaseConfig) {
-		return (function_exists('pg_connect')) ? true : false;
+	protected function createConnection($databaseConfig, &$error) {
+		$error = null;
+		$username = empty($databaseConfig['username']) ? '' : $databaseConfig['username'];
+		$password = empty($databaseConfig['password']) ? '' : $databaseConfig['password'];
+		$server = $databaseConfig['server'];
+		
+		try {
+			switch($databaseConfig['type']) {
+				case 'PostgreSQLDatabase':
+					$userPart = $username ? " user=$username" : '';
+					$passwordPart = $password ? " password=$password" : '';
+					$connstring = "host=$server port=5432 dbname=postgres{$userPart}{$passwordPart}";
+					$conn = pg_connect($connstring);
+					break;
+				case 'PostgrePDODatabase':
+					// May throw a PDOException if fails
+					$conn = @new PDO('postgresql:host='.$server.';dbname=postgres;port=5432', $username, $password);
+					break;
+				default:
+					$error = 'Invalid connection type';
+					return null;
+			}
+		} catch(Exception $ex) {
+			$error = $ex->getMessage();
+			return null;
+		}
+		if($conn) {
+			return $conn;
+		} else {
+			$error = 'PostgreSQL requires a valid username and password to determine if the server exists.';
+			return null;
+		}
 	}
 
-	/**
-	 * Ensure that the database server exists.
-	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
-	 */
-	public function requireDatabaseServer($databaseConfig) {
-		$success = false;
-		$error = '';
-		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
-		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
-		$server = $databaseConfig['server'];
-		$userPart = $username ? " user=$username" : '';
-		$passwordPart = $password ? " password=$password" : '';
-		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
+	public function requireDatabaseFunctions($databaseConfig) {
+		$data = DatabaseAdapterRegistry::get_adapter($databaseConfig['type']);
+		return !empty($data['supported']);
+	}
 
-		$conn = @pg_connect($connstring);
-		if($conn) {
-			$success = true;
-		} else {
-			$success = false;
-			$error = 'PostgreSQL requires a valid username and password to determine if the server exists.';
-		}
-		
+	public function requireDatabaseServer($databaseConfig) {
+		$conn = $this->createConnection($databaseConfig, $error);
+		$success = !empty($conn);
 		return array(
 			'success' => $success,
 			'error' => $error
 		);
 	}
 
-	/**
-	 * Ensure a database connection is possible using credentials provided.
-	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
-	 */
 	public function requireDatabaseConnection($databaseConfig) {
-		$success = false;
-		$error = '';
-		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
-		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
-		$server = $databaseConfig['server'];
-		$userPart = $username ? " user=$username" : '';
-		$passwordPart = $password ? " password=$password" : '';
-		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
-		
-		$conn = @pg_connect($connstring);
-		if($conn) {
-			$success = true;
-		} else {
-			$success = false;
-			$error = '';
-		}
-		
+		$conn = $this->createConnection($databaseConfig, $error);
+		$success = !empty($conn);
 		return array(
 			'success' => $success,
 			'connection' => $conn,
@@ -81,33 +75,22 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	}
 
 	public function getDatabaseVersion($databaseConfig) {
-		$version = 0;
-		$username = $databaseConfig['username'] ? $databaseConfig['username'] : '';
-		$password = $databaseConfig['password'] ? $databaseConfig['password'] : '';
-		$server = $databaseConfig['server'];
-		$userPart = $username ? " user=$username" : '';
-		$passwordPart = $password ? " password=$password" : '';
-		$connstring = "host=$server port=5432 dbname=postgres {$userPart}{$passwordPart}";
-		$conn = @pg_connect($connstring);
-		$info = @pg_version($conn);
-		$version = ($info && isset($info['server'])) ? $info['server'] : null;
-		if(!$version) {
-			// fallback to using the version() function
-			$result = @pg_query($conn, "SELECT version()");
-			$row = @pg_fetch_array($result);
-
-			if($row && isset($row[0])) {
-				$parts = explode(' ', trim($row[0]));
-				// ASSUMPTION version number is the second part e.g. "PostgreSQL 8.4.3"
-				$version = trim($parts[1]);
-			}
+		$conn = $this->createConnection($databaseConfig, $error);
+		if(!$conn) {
+			return false;
+		} elseif($conn instanceof PDO) {
+			return $conn->getAttribute(PDO::ATTR_SERVER_VERSION);
+		} elseif(is_resource($conn)) {
+			$info = pg_version($conn);
+			return $info['server'];
+		} else {
+			return false;
 		}
-
-		return $version;
 	}
 
 	/**
 	 * Ensure that the PostgreSQL version is at least 8.3.
+	 * 
 	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
 	 * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
 	 */
@@ -130,29 +113,60 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 			'error' => $error
 		);
 	}
-
+	
 	/**
-	 * Ensure that the database connection is able to use an existing database,
-	 * or be able to create one if it doesn't exist.
+	 * Helper function to quote a string value
 	 * 
-	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('success' => true, 'alreadyExists' => 'true')
+	 * @param mixed $conn Connection object/resource
+	 * @param string $value Value to quote
+	 * @return string Quoted strieng
 	 */
+	protected function quote($conn, $value) {
+		if($conn instanceof PDO) {
+			return $conn->quote($value);
+		} elseif(is_resource($conn)) {
+			return "'".pg_escape_string($conn, $value)."'";
+		} else {
+			user_error('Invalid database connection', E_USER_ERROR);
+		}
+	}
+	
+	/**
+	 * Helper function to execute a query
+	 * 
+	 * @param mixed $conn Connection object/resource
+	 * @param string $sql SQL string to execute
+	 * @return array List of first value from each resulting row
+	 */
+	protected function query($conn, $sql) {
+		$items = array();
+		if($conn instanceof PDO) {
+			foreach($conn->query($sql) as $row) {
+				$items[] = $row[0];
+			}
+		} elseif(is_resource($conn)) {
+			$result =  pg_query($conn, $sql);
+			while ($row = pg_fetch_row($result)) {
+				$items[] = $row[0];
+			}
+		}
+		return $items;
+	}
+
 	public function requireDatabaseOrCreatePermissions($databaseConfig) {
 		$success = false;
 		$alreadyExists = false;
-		$check = $this->requireDatabaseConnection($databaseConfig);
-		$conn = $check['connection'];
-		
-		$result = pg_query($conn, "SELECT datname FROM pg_database WHERE datname = '$databaseConfig[database]'");
-		if(pg_fetch_array($result)) {
-			$success = true;
-			$alreadyExists = true;
-		} else {
-			if(@pg_query($conn, "CREATE DATABASE testing123")) {
-				pg_query($conn, "DROP DATABASE testing123");
+		$conn = $this->createConnection($databaseConfig, $error);
+		if($conn) {
+			// Check if db already exists
+			$existingDatabases = $this->query($conn, "SELECT datname FROM pg_database");
+			$alreadyExists = in_array($databaseConfig['database'], $existingDatabases);
+			if($alreadyExists) {
 				$success = true;
-				$alreadyExists = false;
+			} else {
+				// Check if this user has create privileges
+				$allowedUsers = $this->query($conn, "select rolname from pg_authid where rolcreatedb = true;");
+				$success = in_array($databaseConfig['username'], $allowedUsers);
 			}
 		}
 		
@@ -161,16 +175,19 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 			'alreadyExists' => $alreadyExists
 		);
 	}
-	
-	/**
-	 * Ensure we have permissions to alter tables.
-	 * 
-	 * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
-	 * @return array Result - e.g. array('okay' => true, 'applies' => true), where applies is whether
-	 * the test is relevant for the database
-	 */
+
 	public function requireDatabaseAlterPermissions($databaseConfig) {
-		return array('success' => true, 'applies' => false);	
+		$success = false;
+		$conn = $this->createConnection($databaseConfig, $error);
+		if($conn) {
+			// Check if this user has create privileges on the default tablespace
+			$sqlUsername = $this->quote($conn, $databaseConfig['username']);
+			$permissions = $this->query($conn, "select * from has_tablespace_privilege($sqlUsername, 'pg_default', 'create')");
+			$success = $permissions && (reset($permissions) == 't');
+		}
+		return array(
+			'success' => $success,
+			'applies' => true
+		);
 	}
-	 
 }

@@ -180,10 +180,10 @@ Please consult the official Postgres documentation for more information.
 Transactions are supported at the database connection level. The relevant 
 functions are:
 
-* DB::getConn()→startTransaction($transaction_mode, $session_characteristics)
-* DB::getConn()→transactionSavepoint($name)
-* DB::getConn()→transactionRollback($savepoint)
-* DB::getConn()→endTransaction();
+* DB::get_conn()→startTransaction($transaction_mode, $session_characteristics)
+* DB::get_conn()→transactionSavepoint($name)
+* DB::get_conn()→transactionRollback($savepoint)
+* DB::get_conn()→endTransaction();
 
 You can create a savepoint by passing a name to the function, and then rollback 
 either all of the uncommited transactions, or if you pass a savepoint name, 
