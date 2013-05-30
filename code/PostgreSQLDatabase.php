@@ -145,7 +145,7 @@ class PostgreSQLDatabase extends SS_Database {
 		// First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
 		// some setups prevent access to this database so set PostgreSQLDatabase::$check_database_exists = false
 		if(self::$check_database_exists) {
-			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
+			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbName . ' ' . $username . $password);
 
 			if(!$this->dbConn) {
 				throw new ErrorException("Couldn't connect to PostgreSQL database");
