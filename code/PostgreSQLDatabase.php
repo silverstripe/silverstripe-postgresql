@@ -1366,6 +1366,20 @@ class PostgreSQLDatabase extends SS_Database {
 	}
 
 	/**
+	 * Delete all entries from the table instead of truncating it.
+	 *
+	 * This gives a massive speed improvement compared to using TRUNCATE, with
+	 * the caveat that primary keys are not reset etc.
+	 *
+	 * @see DatabaseAdmin::clearAllData()
+	 *
+	 * @param string $table
+	 */
+	public function clearTable($table) {
+		$this->query('DELETE FROM "'.$table.'";');
+	}
+
+	/**
 	 * Return a boolean type-formatted string
 	 *
 	 * @params array $values Contains a tokenised list of info about this data type
