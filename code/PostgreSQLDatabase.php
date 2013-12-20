@@ -134,7 +134,7 @@ class PostgreSQLDatabase extends SS_Database {
 			return false;
 
 		($parameters['username']!='') ? $username=' user=' . $parameters['username'] : $username='';
-		($parameters['password']!='') ? $password=' password=' . $parameters['password'] : $password='';
+		($parameters['password']!='') ? $password=' password=\'' . $parameters['password'] . '\'' : $password='';
 
 		if(!isset($this->database))
 			$dbName=$parameters['database'];
@@ -149,6 +149,8 @@ class PostgreSQLDatabase extends SS_Database {
 
 			if(!$this->dbConn) {
 				throw new ErrorException("Couldn't connect to PostgreSQL database");
+			} elseif(pg_connection_status($this->dbConn) != PGSQL_CONNECTION_OK) {
+				throw new ErrorException(pg_last_error($this->dbConn));
 			}
 
 			if(!$this->databaseExists($dbName)) {
@@ -161,6 +163,8 @@ class PostgreSQLDatabase extends SS_Database {
 
 		if(!$this->dbConn) {
 			throw new ErrorException("Couldn't connect to PostgreSQL database");
+		} elseif(pg_connection_status($this->dbConn) != PGSQL_CONNECTION_OK) {
+			throw new ErrorException(pg_last_error($this->dbConn));
 		}
 			
 		//By virtue of getting here, the connection is active:
@@ -334,9 +338,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Returns true if the named database exists.
 	 */
 	public function databaseExists($name) {
-		// We have to use addslashes here, since there may not be a database connection to base the Convert::raw2sql
-		// function off.
-		$SQL_name=addslashes($name);
+		$SQL_name=$this->addslashes($name);
 		return $this->query("SELECT datname FROM pg_database WHERE datname='$SQL_name';")->first() ? true : false;
 	}
 
@@ -1732,7 +1734,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Using PHP's addslashes method won't work in MSSQL
 	 */
 	function addslashes($value){
-		return pg_escape_string($value);
+		return pg_escape_string($this->dbConn, $value);
 	}
 
 	/*
