@@ -142,6 +142,9 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$port = empty($parameters['port']) ? 5432 : $parameters['port'];
 
+		// Close old connection
+		if($this->dbConn) pg_close($this->dbConn);
+
 		// First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
 		// some setups prevent access to this database so set PostgreSQLDatabase::$check_database_exists = false
 		if(self::$check_database_exists) {
@@ -300,7 +303,6 @@ class PostgreSQLDatabase extends SS_Database {
 		//First, we need to switch back to the original database so we can drop the current one
 		$db_to_drop=$this->database;
 		$this->selectDatabase($this->database_original);
-		$this->connectDatabase();
 
 		$this->query("DROP DATABASE \"$db_to_drop\"");
 	}
@@ -326,9 +328,44 @@ class PostgreSQLDatabase extends SS_Database {
 	 * If the database doesn't exist, you should call createDatabase() after calling selectDatabase()
 	 */
 	public function selectDatabase($dbname) {
-		$this->database=$dbname;
+		$parameters=$this->parameters;
+		($parameters['username']!='') ? $username=' user=' . $parameters['username'] : $username='';
+		($parameters['password']!='') ? $password=' password=\'' . $parameters['password'] . '\'' : $password='';
 
+		$port = empty($parameters['port']) ? 5432 : $parameters['port'];
+
+		$this->database = $dbname;
 		$this->tableList = $this->fieldList = $this->indexList = null;
+
+		// Close old connection
+		if($this->dbConn) pg_close($this->dbConn);
+
+		// Switch to the database if it exists
+		if($this->databaseExists($dbname)) {
+			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbname . $username . $password);
+
+			if(!$this->dbConn) {
+				throw new ErrorException("Couldn't connect to PostgreSQL database");
+			} elseif(pg_connection_status($this->dbConn) != PGSQL_CONNECTION_OK) {
+				throw new ErrorException(pg_last_error($this->dbConn));
+			}
+
+			// Determine schema to use
+			$schema = isset($parameters['schema']) ? $parameters['schema'] : $this->currentSchema();
+			if(!$schema) $schema = "public";
+
+			// Choose the schema
+			if(!$this->schemaExists($schema)) $this->createSchema($schema);
+			$this->setSchema($schema);
+
+			// Set the timezone if required.
+			if(isset($parameters['timezone'])) $this->query(sprintf("SET SESSION TIME ZONE '%s'", $parameters['timezone']));
+
+		// Inactive database needs to be created; connect to the 'postgres' database in the meantime
+		} else {
+			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
+			$this->active = false;
+		}
 
 		return true;
 	}
