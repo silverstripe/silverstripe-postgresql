@@ -142,12 +142,11 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$port = empty($parameters['port']) ? 5432 : $parameters['port'];
 
-		// Close old connection
-		if($this->dbConn) pg_close($this->dbConn);
-
 		// First, we need to check that this database exists.  To do this, we will connect to the 'postgres' database first
 		// some setups prevent access to this database so set PostgreSQLDatabase::$check_database_exists = false
 		if(self::$check_database_exists) {
+			// Close the old connection
+			if($this->dbConn) pg_close($this->dbConn);
 			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
 
 			if(!$this->dbConn) {
@@ -160,6 +159,9 @@ class PostgreSQLDatabase extends SS_Database {
 				$this->createDatabase($dbName);
 			}
 		}
+
+		// Close the old connection
+		if($this->dbConn) pg_close($this->dbConn);
 
 		//Now we can be sure that this database exists, so we can connect to it
 		$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbName . $username . $password);
@@ -337,11 +339,10 @@ class PostgreSQLDatabase extends SS_Database {
 		$this->database = $dbname;
 		$this->tableList = $this->fieldList = $this->indexList = null;
 
-		// Close old connection
-		if($this->dbConn) pg_close($this->dbConn);
-
 		// Switch to the database if it exists
 		if($this->databaseExists($dbname)) {
+			// Close old connection
+			if($this->dbConn) pg_close($this->dbConn);
 			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=' . $dbname . $username . $password);
 
 			if(!$this->dbConn) {
@@ -363,6 +364,8 @@ class PostgreSQLDatabase extends SS_Database {
 
 		// Inactive database needs to be created; connect to the 'postgres' database in the meantime
 		} else {
+			// Close old connection
+			if($this->dbConn) pg_close($this->dbConn);
 			$this->dbConn = pg_connect('host=' . $parameters['server'] . ' port=' . $port . ' dbname=postgres' . $username . $password);
 			$this->active = false;
 		}
@@ -1771,7 +1774,8 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Using PHP's addslashes method won't work in MSSQL
 	 */
 	function addslashes($value){
-		return pg_escape_string($this->dbConn, $value);
+		if($this->dbConn) return pg_escape_string($this->dbConn, $value);
+		else return pg_escape_string($value);
 	}
 
 	/*
