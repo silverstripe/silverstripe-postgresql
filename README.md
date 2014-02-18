@@ -1,5 +1,7 @@
 # PostgreSQL Module Module
 
+[![Build Status](https://travis-ci.org/silverstripe/silverstripe-postgresql.png?branch=master)](https://travis-ci.org/silverstripe/silverstripe-postgresql)
+
 ## Maintainer Contact
 
  * Sam Minnee (Nickname: sminnee) <sam@silverstripe.com>

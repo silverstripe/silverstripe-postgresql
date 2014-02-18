@@ -1,0 +1,20 @@
+language: php 
+
+php:
+  - 5.3
+
+env:
+  matrix:
+    - DB=POSTGRESQL CORE_RELEASE=3.0
+    - DB=POSTGRESQL CORE_RELEASE=3.1
+    - DB=POSTGRESQL CORE_RELEASE=master
+
+before_script:
+ - composer self-update
+ - phpenv rehash
+ - git clone git://github.com/silverstripe-labs/silverstripe-travis-support.git ~/travis-support
+ - php ~/travis-support/travis_setup.php --source `pwd` --target ~/builds/ss
+ - cd ~/builds/ss
+
+script: 
+ - phpunit framework/tests 
