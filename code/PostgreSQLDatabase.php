@@ -2108,6 +2108,7 @@ class PostgreSQLDatabase extends SS_Database {
 		} else {
 			$comp = ($caseSensitive === true) ? 'LIKE' : 'ILIKE';
 			if($negate) $comp = 'NOT ' . $comp;
+			$field.='::text';
 		}
 		
 		return sprintf("%s %s '%s'", $field, $comp, $value);
