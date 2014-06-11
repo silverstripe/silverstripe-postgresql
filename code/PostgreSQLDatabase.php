@@ -1885,12 +1885,14 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
 
+		// Get the total items in this search
+		$totalItemsQuery = "SELECT COUNT(*) AS totalitems FROM (" . implode(" UNION ", $tables) . ") AS q1";
+		$totalCount = DB::query($totalItemsQuery);
+
 		// Get records
 		$records = DB::query($fullQuery);
-		$totalCount=0;
 		foreach($records as $record){
 			$objects[] = new $record['ClassName']($record);
-			$totalCount++;
 		}
 
 		if(isset($objects)) $results = new ArrayList($objects);
@@ -1899,7 +1901,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$list->setLimitItems(false);
 		$list->setPageStart($start);
 		$list->setPageLength($pageLength);
-		$list->setTotalItems($totalCount);
+		$list->setTotalItems($totalCount->value());
 		return $list;
 	}
 
