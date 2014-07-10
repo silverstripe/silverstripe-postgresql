@@ -4,14 +4,17 @@
 	"type": "silverstripe-module",
 	"keywords": ["silverstripe", "postgresql", "database"],
 	"authors": [
-	{
-		"name": "Sam Minnée",
-		"email": "sam@silverstripe.com"
-	}
+		{
+			"name": "Sam Minnée",
+			"email": "sam@silverstripe.com"
+		}
 	],
-
-	"require":
-	{
+	"require": {
 		"silverstripe/framework": "~3.2"
+	},
+	"extra": {
+		"branch-alias": {
+			"dev-master": "1.2.x-dev"
+		}
 	}
 }
