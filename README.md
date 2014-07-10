@@ -15,7 +15,8 @@
 
 ## Installation
 
- 1. Extract the contents so they reside as a **postgresql** directory inside your SilverStripe project code
+ 1. Install via composer `composer require silverstripe/postgresql 1.2.*-dev` or extract the contents
+    so they reside as a `postgresql` directory inside your SilverStripe project code
  2. Open the installer by browsing to install.php, e.g. http://localhost/silverstripe/install.php
  3. Select PostgreSQL in the database list and enter your database details
 
