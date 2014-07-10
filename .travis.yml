@@ -5,8 +5,6 @@ php:
 
 env:
   matrix:
-    - DB=POSTGRESQL CORE_RELEASE=3.0
-    - DB=POSTGRESQL CORE_RELEASE=3.1
     - DB=POSTGRESQL CORE_RELEASE=master
 
 before_script:
