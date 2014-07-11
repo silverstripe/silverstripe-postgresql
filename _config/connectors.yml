@@ -1,0 +1,16 @@
+---
+name: postgresqlconnectors
+---
+Injector:
+  PostgrePDODatabase:
+    class: 'PostgrePDODatabase'
+    properties:
+      connector: %$PDOConnector
+      schemaManager: %$PostgreSQLSchemaManager
+      queryBuilder: %$DBQueryBuilder
+  PostgreSQLDatabase:
+    class: 'PostgreSQLDatabase'
+    properties:
+      connector: %$PostgreSQLConnector
+      schemaManager: %$PostgreSQLSchemaManager
+      queryBuilder: %$DBQueryBuilder

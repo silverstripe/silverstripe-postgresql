@@ -1,0 +1,32 @@
+PostgreSQLDatabase:
+# Determines whether to check a database exists on the host by
+# querying the 'postgres' database and running createDatabase.
+#
+# Some locked down systems prevent access to the 'postgres' table in
+# which case you need to set this to false.
+#
+# If allow_query_master_postgres is false, and model_schema_as_database is also false, 
+# then attempts to create or check databases beyond the initial connection will
+# result in a runtime error.
+  allow_query_master_postgres: true
+# For instances where multiple databases are used beyond the initial connection
+# you may set this option to true to force database switches to switch schemas
+# instead of using databases. This may be useful if the database user does not
+# have cross-database permissions, and in cases where multiple databases are used
+# (such as in running test cases).
+# 
+# If this is true then the database will only be set during the initial connection,
+# and attempts to change to this database will use the 'public' schema instead
+#
+# If this is false then errors may be generated during some cross database operations.
+  model_schema_as_database: true
+# Override the language that tsearch uses.  By default it is 'english, but
+# could be any of the supported languages that can be found in the
+# pg_catalog.pg_ts_config table.
+  search_language: 'english'
+# These two values describe how T-search will work.
+# You can use either GiST or GIN, and '@@' (gist) or '@@@' (gin)
+# Combinations of these two will also work, so you'll need to pick
+# one which works best for you
+  default_fts_cluster_method: 'GIN'
+  default_fts_search_method: '@@@'

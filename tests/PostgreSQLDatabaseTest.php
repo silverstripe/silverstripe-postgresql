@@ -7,15 +7,15 @@ class PostgreSQLDatabaseTest extends SapphireTest {
 	function testReadOnlyTransaction(){
 
 		if(
-			DB::getConn()->supportsTransactions() == true
-			&& DB::getConn() instanceof PostgreSQLDatabase
+			DB::get_conn()->supportsTransactions() == true
+			&& DB::get_conn() instanceof PostgreSQLDatabase
 		){
 
 			$page=new Page();
 			$page->Title='Read only success';
 			$page->write();
 
-			DB::getConn()->transactionStart('READ ONLY');
+			DB::get_conn()->transactionStart('READ ONLY');
 
 			try {
 				$page=new Page();
@@ -24,10 +24,10 @@ class PostgreSQLDatabaseTest extends SapphireTest {
 			} catch (Exception $e) {
 				//could not write this record
 				//We need to do a rollback or a commit otherwise we'll get error messages
-				DB::getConn()->transactionRollback();
+				DB::get_conn()->transactionRollback();
 			}
 
-			DB::getConn()->transactionEnd();
+			DB::get_conn()->transactionEnd();
 
 			DataObject::flush_and_destroy_cache();
 
