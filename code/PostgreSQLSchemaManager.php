@@ -542,11 +542,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 		//if(!isset(self::$cached_fieldlists[$table])){
 			$fields = $this->preparedQuery("
-				SELECT ordinal_position, column_name, data_type, column_default, 
+				SELECT ordinal_position, column_name, data_type, column_default,
 				is_nullable, character_maximum_length, numeric_precision, numeric_scale
-				FROM information_schema.columns WHERE  table_name = ?
+				FROM information_schema.columns WHERE table_name = ? and table_schema = ?
 				ORDER BY ordinal_position;",
-				array($table)
+				array($table, $this->database->currentSchema())
 			);
 
 			$output = array();
@@ -762,12 +762,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Given a trigger name attempt to determine the columns upon which it acts
-	 * 
+	 *
 	 * @param string $triggerName Postgres trigger name
 	 * @return array List of columns
 	 */
-	protected function extractTriggerColumns($triggerName)
-	{
+	protected function extractTriggerColumns($triggerName) {
 		$trigger = $this->preparedQuery(
 			"SELECT tgargs FROM pg_catalog.pg_trigger WHERE tgname = ?",
 			array($triggerName)
@@ -875,7 +874,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	 *
 	 * @param string $constraint
 	 */
-	function constraintExists($constraint){
+	protected function constraintExists($constraint){
 		if(!isset(self::$cached_constraints[$constraint])){
 			$exists = $this->preparedQuery("
 				SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true)
@@ -920,11 +919,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	/**
 	 * Pass a legit trigger name and it will be dropped
 	 * This assumes that the trigger has been named in a unique fashion
-	 * 
+	 *
 	 * @param string $triggerName Name of the trigger
 	 * @param string $tableName Name of the table
 	 */
-	function dropTrigger($triggerName, $tableName){
+	protected function dropTrigger($triggerName, $tableName){
 		$exists = $this->preparedQuery("
 			SELECT trigger_name
 			FROM information_schema.triggers
@@ -938,12 +937,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * This will return the fields that the trigger is monitoring
-	 * 
+	 *
 	 * @param string $trigger Name of the trigger
 	 * @return array
 	 */
-	function triggerFieldsFromTrigger($trigger) {
-
+	protected function triggerFieldsFromTrigger($trigger) {
 		if($trigger){
 			$tsvector='tsvector_update_trigger';
 			$ts_pos=strpos($trigger, $tsvector);
@@ -1229,7 +1227,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	 * @param string $name
 	 * @param array $spec
 	 */
-	function fulltext($this_index, $tableName, $name){
+	protected function fulltext($this_index, $tableName, $name){
 		//For full text search, we need to create a column for the index
 		$columns = $this->quoteColumnSpecString($this_index['value']);
 
@@ -1250,7 +1248,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 		);
 	}
 
-	function IdColumn($asDbValue = false, $hasAutoIncPK = true){
+	public function IdColumn($asDbValue = false, $hasAutoIncPK = true){
 		if($asDbValue) return 'bigint';
 		else return 'serial8 not null';
 	}
@@ -1265,14 +1263,14 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Returns the values of the given enum field
-	 * 
+	 *
 	 * @todo Make a proper implementation
-	 * 
+	 *
 	 * @param string $tableName Name of table to check
 	 * @param string $fieldName name of enum field to check
 	 * @return array List of enum values
 	 */
-	function enumValuesForField($tableName, $fieldName) {
+	public function enumValuesForField($tableName, $fieldName) {
 		//return array('SiteTree','Page');
 		$constraints = $this->constraintExists("{$tableName}_{$fieldName}_check");
 		if($constraints) {
@@ -1282,7 +1280,25 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 		}
 	}
 
-	function dbDataType($type){
+	/**
+	 * Get the actual enum fields from the constraint value:
+	 *
+	 * @param string $constraint
+	 * @return array
+	 */
+	protected function enumValuesFromConstraint($constraint){
+		$constraint = substr($constraint, strpos($constraint, 'ANY (ARRAY[')+11);
+		$constraint = substr($constraint, 0, -11);
+		$constraints = array();
+		$segments = explode(',', $constraint);
+		foreach($segments as $this_segment){
+			$bits = preg_split('/ *:: */', $this_segment);
+			array_unshift($constraints, trim($bits[0], " '"));
+		}
+		return $constraints;
+	}
+
+	public function dbDataType($type){
 		$values = array(
 			'unsigned integer' => 'INT'
 		);
