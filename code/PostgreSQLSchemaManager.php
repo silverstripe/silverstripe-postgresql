@@ -1118,6 +1118,32 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	}
 
 	/**
+	 * Return a bigint type-formatted string
+	 *
+	 * @param array $values Contains a tokenised list of info about this data type
+	 * @param boolean $asDbValue
+	 * @return string
+	 */
+	public function bigint($values, $asDbValue = false){
+
+		if(!isset($values['arrayValue'])) {
+			$values['arrayValue']='';
+		}
+
+		if($asDbValue) {
+			return Array('data_type'=>'bigint', 'precision'=>'64');
+		} 
+
+		if($values['arrayValue']!='') {
+			$default='';
+		} else {
+			$default=' default ' . (int)$values['default'];
+		}
+
+		return "bigint{$values['arrayValue']}" . $default;
+	}
+
+	/**
 	 * Return a datetime type-formatted string
 	 * For PostgreSQL, we simply return the word 'timestamp', no other parameters are necessary
 	 *
