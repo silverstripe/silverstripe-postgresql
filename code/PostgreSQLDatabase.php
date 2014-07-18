@@ -104,12 +104,12 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Connection parameters specified at inital connection
-	 * 
-	 * @var array 
+	 *
+	 * @var array
 	 */
 	protected $parameters = array();
 
-	function connect($parameters) {
+	public function connect($parameters) {
 		// Check database name
 		if(empty($parameters['database'])) {
 			// Check if we can use the master database
@@ -322,7 +322,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 			$method = self::default_fts_search_method();
 			$conditions[] = "\"{$row['table_name']}\".\"{$row['column_name']}\" $method q ";
-			$query = DataObject::get($row['table_name'], $where)->dataQuery()->query();
+			$query = DataObject::get($row['table_name'], $conditions)->dataQuery()->query();
 
 			// Could parameterise this, but convention is only to to so for where conditions
 			$query->addFrom(array(
@@ -390,21 +390,21 @@ class PostgreSQLDatabase extends SS_Database {
 		$this->query('BEGIN;');
 
 		if($transaction_mode) {
-			$this->preparedQuery('SET TRANSACTION ?;', array($transaction_mode));
+			$this->query("SET TRANSACTION {$transaction_mode};");
 		}
 
 		if($session_characteristics) {
-			$this->preparedQuery('SET SESSION CHARACTERISTICS AS TRANSACTION ?;', array($session_characteristics));
+			$this->query("SET SESSION CHARACTERISTICS AS TRANSACTION {$session_characteristics};");
 		}
 	}
 
 	public function transactionSavepoint($savepoint){
-		$this->preparedQuery("SAVEPOINT ?;", array($savepoint));
+		$this->query("SAVEPOINT {$savepoint};");
 	}
 
 	public function transactionRollback($savepoint = false){
 		if($savepoint) {
-			$this->preparedQuery("ROLLBACK TO ?;", array($savepoint));
+			$this->query("ROLLBACK TO {$savepoint};");
 		} else {
 			$this->query('ROLLBACK;');
 		}
@@ -443,10 +443,9 @@ class PostgreSQLDatabase extends SS_Database {
 	 * %U = unix timestamp, can only be used on it's own
 	 * @return string SQL datetime expression to query for a formatted datetime
 	 */
-	function formattedDatetimeClause($date, $format) {
-
+	public function formattedDatetimeClause($date, $format) {
 		preg_match_all('/%(.)/', $format, $matches);
-		foreach($matches[1] as $match) { 
+		foreach($matches[1] as $match) {
 			if(array_search($match, array('Y','m','d','H','i','s','U')) === false) {
 				user_error('formattedDatetimeClause(): unsupported format character %' . $match, E_USER_WARNING);
 			}
@@ -489,8 +488,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * This includes the singular forms as well
 	 * @return string SQL datetime expression to query for a datetime (YYYY-MM-DD hh:mm:ss) which is the result of the addition
 	 */
-	function datetimeIntervalClause($date, $interval) {
-
+	public function datetimeIntervalClause($date, $interval) {
 		if(preg_match('/^now$/i', $date)) {
 			$date = "NOW()";
 		} else if(preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/i', $date)) {
@@ -509,8 +507,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @param string $date2 to be substracted of $date1, can be either 'now', literal datetime like '1973-10-14 10:30:00' or field name, e.g. '"SiteTree"."Created"'
 	 * @return string SQL datetime expression to query for the interval between $date1 and $date2 in seconds which is the result of the substraction
 	 */
-	function datetimeDifferenceClause($date1, $date2) {
-
+	public function datetimeDifferenceClause($date1, $date2) {
 		if(preg_match('/^now$/i', $date1)) {
 			$date1 = "NOW()";
 		} else if(preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/i', $date1)) {

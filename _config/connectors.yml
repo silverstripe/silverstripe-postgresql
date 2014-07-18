@@ -3,7 +3,7 @@ name: postgresqlconnectors
 ---
 Injector:
   PostgrePDODatabase:
-    class: 'PostgrePDODatabase'
+    class: 'PostgreSQLDatabase'
     properties:
       connector: %$PDOConnector
       schemaManager: %$PostgreSQLSchemaManager
