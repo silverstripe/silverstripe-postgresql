@@ -7,10 +7,10 @@ Injector:
     properties:
       connector: %$PDOConnector
       schemaManager: %$PostgreSQLSchemaManager
-      queryBuilder: %$DBQueryBuilder
+      queryBuilder: %$PostgreSQLQueryBuilder
   PostgreSQLDatabase:
     class: 'PostgreSQLDatabase'
     properties:
       connector: %$PostgreSQLConnector
       schemaManager: %$PostgreSQLSchemaManager
-      queryBuilder: %$DBQueryBuilder
+      queryBuilder: %$PostgreSQLQueryBuilder
