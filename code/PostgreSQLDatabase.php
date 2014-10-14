@@ -482,6 +482,18 @@ class PostgreSQLDatabase extends SS_Database {
 					$ts_details=$this->fulltext($this_index, $tableName, $name);
 					$fulltexts.=$ts_details['fulltexts'] . ', ';
 					$triggers.=$ts_details['triggers'];
+				} else if(is_string($this_index)) {
+					preg_match('/^fulltext\ \((.+)\)$/i', $this_index, $matches);
+					if(count($matches) == 2) {
+						$index = array(
+							'type' => 'fulltext',
+							'name' => $name,
+							'value' => $matches[1]
+						);
+						$ts_details=$this->fulltext($index, $tableName, $name);
+						$fulltexts.=$ts_details['fulltexts'] . ', ';
+						$triggers.=$ts_details['triggers'];
+					}
 				}
 			}
 		}
