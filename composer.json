@@ -10,7 +10,7 @@
 		}
 	],
 	"require": {
-		"silverstripe/framework": "~3.2"
+		"silverstripe/framework": ">=3.2"
 	},
 	"extra": {
 		"branch-alias": {
