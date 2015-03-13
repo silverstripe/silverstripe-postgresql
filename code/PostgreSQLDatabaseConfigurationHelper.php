@@ -177,16 +177,16 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	}
 
 	public function requireDatabaseAlterPermissions($databaseConfig) {
-		$success = false;
 		$conn = $this->createConnection($databaseConfig, $error);
 		if($conn) {
-			// Check if this user has create privileges on the default tablespace
-			$sqlUsername = $this->quote($conn, $databaseConfig['username']);
-			$permissions = $this->query($conn, "select * from has_tablespace_privilege($sqlUsername, 'pg_default', 'create')");
-			$success = $permissions && (reset($permissions) == 't');
+            // if the account can even log in, it can alter tables
+            return array(
+                'success' => true,
+                'applies' => true
+            );
 		}
 		return array(
-			'success' => $success,
+			'success' => false,
 			'applies' => true
 		);
 	}
