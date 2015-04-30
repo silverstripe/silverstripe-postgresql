@@ -179,11 +179,11 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 	public function requireDatabaseAlterPermissions($databaseConfig) {
 		$conn = $this->createConnection($databaseConfig, $error);
 		if($conn) {
-            // if the account can even log in, it can alter tables
-            return array(
-                'success' => true,
-                'applies' => true
-            );
+			// if the account can even log in, it can alter tables
+			return array(
+				'success' => true,
+				'applies' => true
+			);
 		}
 		return array(
 			'success' => false,
