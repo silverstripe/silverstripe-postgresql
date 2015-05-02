@@ -721,7 +721,7 @@ class PostgreSQLDatabase extends SS_Database {
 		// TODO: this returns an empty array for the following string: int(11) not null auto_increment
 		//		 on second thoughts, why is an auto_increment field being passed through?
 
-		$pattern = '/^([\w()]+)\s?((?:not\s)?null)?\s?(default\s[\w\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
+		$pattern = '/^([\w()]+)\s?((?:not\s)?null)?\s?(default\s[\w\s\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
 		preg_match($pattern, $colSpec, $matches);
 
 		if(sizeof($matches)==0) return '';
