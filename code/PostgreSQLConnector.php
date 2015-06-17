@@ -161,6 +161,7 @@ class PostgreSQLConnector extends DBConnector {
 		$segments = preg_split('/\?/', $sql);
 		$joined = '';
 		$inString = false;
+		$num = 0;
 		for($i = 0; $i < count($segments); $i++) {
 			// Append next segment
 			$joined .= $segments[$i];
@@ -174,12 +175,19 @@ class PostgreSQLConnector extends DBConnector {
 			}
 
 			// Append placeholder replacement
-			$joined .= $inString ? "?" : ('$'.($i+1));
+			if($inString) {
+				$joined .= "?";
+			} else {
+				$joined .= '$' . ++$num;
+			}
 		}
 		return $joined;
 	}
 
 	public function preparedQuery($sql, $parameters, $errorLevel = E_USER_ERROR) {
+		// Reset state
+		$this->lastQuery = null;
+		$this->lastRows = 0;
 
 		// Replace question mark placeholders with numeric placeholders
 		if(!empty($parameters)) {
@@ -187,26 +195,22 @@ class PostgreSQLConnector extends DBConnector {
 			$parameters = $this->parameterValues($parameters);
 		}
 
-		// Check if we should only preview this query
-		if ($this->previewWrite($sql)) return;
-
-		// Benchmark query
-		$conn = $this->dbConn;
-		$this->lastQuery = $result = $this->benchmarkQuery($sql, function($sql) use($conn, $parameters) {
-			if(!empty($parameters)) {
-				return pg_query_params($conn, $sql, $parameters);
-			} else {
-				return pg_query($conn, $sql);
-			}
-		});
-		$this->lastRows = 0;
+		// Execute query
+		if(!empty($parameters)) {
+			$result = pg_query_params($this->dbConn, $sql, $parameters);
+		} else {
+			$result = pg_query($this->dbConn, $sql);
+		}
+		
+		// Handle error
 		if ($result === false) {
 			$this->databaseError($this->getLastError(), $errorLevel, $sql, $parameters);
 			return null;
-		} else {
-			$this->lastRows = pg_affected_rows($result);
 		}
-
+		
+		// Save and return results
+		$this->lastQuery = $result;
+		$this->lastRows = pg_affected_rows($result);
 		return new PostgreSQLQuery($result);
 	}
 
