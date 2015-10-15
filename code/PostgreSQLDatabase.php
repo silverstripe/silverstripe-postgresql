@@ -304,7 +304,7 @@ class PostgreSQLDatabase extends SS_Database {
 				'0 AS "ParentID"',
 				'"Title"',
 				'NULL AS "URLSegment"',
-				'NULL "Content"',
+				'NULL AS "Content"',
 				'"LastEdited"',
 				'"Created"',
 				'"Name"',
