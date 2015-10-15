@@ -295,7 +295,6 @@ class PostgreSQLDatabase extends SS_Database {
 				'"Content"',
 				'"LastEdited"',
 				'"Created"',
-				'NULL AS "Filename"',
 				'NULL AS "Name"',
 				'"CanViewType"'
 			),
@@ -305,10 +304,9 @@ class PostgreSQLDatabase extends SS_Database {
 				'0 AS "ParentID"',
 				'"Title"',
 				'NULL AS "URLSegment"',
-				'"Content"',
+				'NULL "Content"',
 				'"LastEdited"',
 				'"Created"',
-				'"Filename"',
 				'"Name"',
 				'NULL AS "CanViewType"'
 			)

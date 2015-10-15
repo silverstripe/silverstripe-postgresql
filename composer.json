@@ -10,11 +10,11 @@
 		}
 	],
 	"require": {
-		"silverstripe/framework": ">=3.2"
+		"silverstripe/framework": "~4.0"
 	},
 	"extra": {
 		"branch-alias": {
-			"dev-master": "1.2.x-dev"
+			"dev-master": "2.0.x-dev"
 		}
 	}
 }
