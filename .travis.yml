@@ -7,7 +7,15 @@ php:
 
 env:
   matrix:
-    - DB=POSTGRESQL CORE_RELEASE=master
+    - DB=POSTGRESQL CORE_RELEASE=3.2
+
+
+matrix:
+  include:
+    - php: 5.6
+      env: DB=POSTGRESQL CORE_RELEASE=3.2
+    - php: 5.5
+      env: DB=POSTGRESQL CORE_RELEASE=3
 
 before_script:
  - composer self-update || true
