@@ -442,7 +442,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 		// TODO: this returns an empty array for the following string: int(11) not null auto_increment
 		//		 on second thoughts, why is an auto_increment field being passed through?
 
-		$pattern = '/^([\w()]+)\s?((?:not\s)?null)?\s?(default\s[\w\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
+		$pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
 		preg_match($pattern, $colSpec, $matches);
 
 		if(sizeof($matches)==0) return '';
@@ -598,7 +598,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 						break;
 
 					case 'numeric':
-						$output[$field['column_name']]='decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . (int)$field['column_default'];
+						$output[$field['column_name']]='decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . floatval($field['column_default']);
 						break;
 
 					case 'integer':
@@ -1026,7 +1026,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 		$defaultValue = '';
 		if(isset($values['default']) && is_numeric($values['default'])) {
-			$defaultValue = ' default ' . $values['default'];
+			$defaultValue = ' default ' . floatval($values['default']);
 		}
 
 		if($asDbValue) {
