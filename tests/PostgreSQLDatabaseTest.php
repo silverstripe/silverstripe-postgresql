@@ -3,46 +3,44 @@
  * @package postgresql
  * @subpackage tests
  */
-class PostgreSQLDatabaseTest extends SapphireTest {
-	function testReadOnlyTransaction(){
+class PostgreSQLDatabaseTest extends SapphireTest
+{
+    public function testReadOnlyTransaction()
+    {
+        if (
+            DB::get_conn()->supportsTransactions() == true
+            && DB::get_conn() instanceof PostgreSQLDatabase
+        ) {
+            $page=new Page();
+            $page->Title='Read only success';
+            $page->write();
 
-		if(
-			DB::get_conn()->supportsTransactions() == true
-			&& DB::get_conn() instanceof PostgreSQLDatabase
-		){
+            DB::get_conn()->transactionStart('READ ONLY');
 
-			$page=new Page();
-			$page->Title='Read only success';
-			$page->write();
+            try {
+                $page=new Page();
+                $page->Title='Read only page failed';
+                $page->write();
+            } catch (Exception $e) {
+                //could not write this record
+                //We need to do a rollback or a commit otherwise we'll get error messages
+                DB::get_conn()->transactionRollback();
+            }
 
-			DB::get_conn()->transactionStart('READ ONLY');
+            DB::get_conn()->transactionEnd();
 
-			try {
-				$page=new Page();
-				$page->Title='Read only page failed';
-				$page->write();
-			} catch (Exception $e) {
-				//could not write this record
-				//We need to do a rollback or a commit otherwise we'll get error messages
-				DB::get_conn()->transactionRollback();
-			}
+            DataObject::flush_and_destroy_cache();
 
-			DB::get_conn()->transactionEnd();
+            $success=DataObject::get('Page', "\"Title\"='Read only success'");
+            $fail=DataObject::get('Page', "\"Title\"='Read only page failed'");
 
-			DataObject::flush_and_destroy_cache();
+            //This page should be in the system
+            $this->assertTrue(is_object($success) && $success->exists());
 
-			$success=DataObject::get('Page', "\"Title\"='Read only success'");
-			$fail=DataObject::get('Page', "\"Title\"='Read only page failed'");
-
-			//This page should be in the system
-			$this->assertTrue(is_object($success) && $success->exists());
-
-			//This page should NOT exist, we had 'read only' permissions
-			$this->assertFalse(is_object($fail) && $fail->exists());
-
-		} else {
-			$this->markTestSkipped('Current database is not PostgreSQL');
-		}
-
-	}
+            //This page should NOT exist, we had 'read only' permissions
+            $this->assertFalse(is_object($fail) && $fail->exists());
+        } else {
+            $this->markTestSkipped('Current database is not PostgreSQL');
+        }
+    }
 }
