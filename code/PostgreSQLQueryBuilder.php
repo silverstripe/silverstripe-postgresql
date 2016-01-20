@@ -2,7 +2,6 @@
 
 class PostgreSQLQueryBuilder extends DBQueryBuilder
 {
-
     /**
      * Return the LIMIT clause ready for inserting into a query.
      *

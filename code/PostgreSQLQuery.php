@@ -8,7 +8,6 @@
  */
 class PostgreSQLQuery extends SS_Query
 {
-
     /**
      * The internal Postgres handle that points to the result set.
      * @var resource

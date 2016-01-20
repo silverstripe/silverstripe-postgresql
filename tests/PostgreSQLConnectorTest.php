@@ -7,7 +7,6 @@
  */
 class PostgreSQLConnectorTest extends SapphireTest
 {
-
     public function testSubstitutesPlaceholders()
     {
         $connector = new PostgreSQLConnector();

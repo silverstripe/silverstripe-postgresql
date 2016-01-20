@@ -8,7 +8,6 @@
  */
 class PostgreSQLDatabase extends SS_Database
 {
-
     /**
      * Database schema manager object
      * 

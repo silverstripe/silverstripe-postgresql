@@ -12,7 +12,6 @@
  */
 class PostgreSQLConnector extends DBConnector
 {
-
     /**
      * Connection to the PG Database database
      * 
