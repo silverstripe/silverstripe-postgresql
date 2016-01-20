@@ -171,9 +171,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     public function schemaList()
     {
         return $this->query("
-			SELECT nspname
-			FROM pg_catalog.pg_namespace
-			WHERE nspname <> 'information_schema' AND nspname !~ E'^pg_'"
+            SELECT nspname
+            FROM pg_catalog.pg_namespace
+            WHERE nspname <> 'information_schema' AND nspname !~ E'^pg_'"
         )->column();
     }
 
@@ -233,10 +233,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
 
         $this->query("CREATE TABLE \"$table\" (
-				$fieldSchemas
-				$fulltexts
-				primary key (\"ID\")
-			)$tableSpace; $indexSchemas $addOptions");
+                $fieldSchemas
+                $fulltexts
+                primary key (\"ID\")
+            )$tableSpace; $indexSchemas $addOptions");
 
         if ($triggers!='') {
             $this->query($triggers);
@@ -454,9 +454,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             //Now we can run a long query to get the clustered status:
             //If anyone knows a better way to get the clustered status, then feel free to replace this!
             $clustered = $this->preparedQuery("
-				SELECT c2.relname, i.indisclustered 
-				FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
-				WHERE c.oid = ? AND c.oid = i.indrelid AND i.indexrelid = c2.oid AND indisclustered='t';",
+                SELECT c2.relname, i.indisclustered 
+                FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
+                WHERE c.oid = ? AND c.oid = i.indrelid AND i.indexrelid = c2.oid AND indisclustered='t';",
                 array($oid)
             )->first();
 
@@ -478,7 +478,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     {
         // First, we split the column specifications into parts
         // TODO: this returns an empty array for the following string: int(11) not null auto_increment
-        //		 on second thoughts, why is an auto_increment field being passed through?
+        //         on second thoughts, why is an auto_increment field being passed through?
 
         $pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
         preg_match($pattern, $colSpec, $matches);
@@ -506,7 +506,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             }
 
             // SET check constraint (The constraint HAS to be dropped)
-            $existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+            $constraintName = "{$tableName}_{$colName}_check";
+            $constraintExists = $this->constraintExists($constraintName, false);
             if (isset($matches[4])) {
                 //Take this new constraint and see what's outstanding from the target table:
                 $constraint_bits=explode('(', $matches[4]);
@@ -529,13 +530,13 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             }
 
             //First, delete any existing constraint on this column, even if it's no longer an enum
-            if ($existing_constraint) {
-                $alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+            if ($constraintExists) {
+                $alterCol .= ",\nDROP CONSTRAINT \"{$constraintName}\"";
             }
 
             //Now create the constraint (if we've asked for one)
             if (!empty($matches[4])) {
-                $alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+                $alterCol .= ",\nADD CONSTRAINT \"{$constraintName}\" $matches[4]";
             }
         }
 
@@ -590,10 +591,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         //if(!isset(self::$cached_fieldlists[$table])){
             $fields = $this->preparedQuery("
-				SELECT ordinal_position, column_name, data_type, column_default,
-				is_nullable, character_maximum_length, numeric_precision, numeric_scale
-				FROM information_schema.columns WHERE table_name = ? and table_schema = ?
-				ORDER BY ordinal_position;",
+                SELECT ordinal_position, column_name, data_type, column_default,
+                is_nullable, character_maximum_length, numeric_precision, numeric_scale
+                FROM information_schema.columns WHERE table_name = ? and table_schema = ?
+                ORDER BY ordinal_position;",
                 array($table, $this->database->currentSchema())
             );
 
@@ -676,7 +677,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             }
         }
 
-        //	self::$cached_fieldlists[$table]=$output;
+        //    self::$cached_fieldlists[$table]=$output;
         //}
 
         //return self::$cached_fieldlists[$table];
@@ -859,9 +860,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     {
         //Retrieve a list of indexes for the specified table
         $indexes = $this->preparedQuery("
-			SELECT tablename, indexname, indexdef
-			FROM pg_catalog.pg_indexes
-			WHERE tablename = ? AND schemaname = ?;",
+            SELECT tablename, indexname, indexdef
+            FROM pg_catalog.pg_indexes
+            WHERE tablename = ? AND schemaname = ?;",
             array($table, $this->database->currentSchema())
         );
 
@@ -886,7 +887,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
             //TODO: Fix me: btree is the default index type:
             //if(strpos(strtolower($index['indexdef']), 'using btree ')!==false)
-            //	$prefix='using btree ';
+            //    $prefix='using btree ';
 
             if (strpos(strtolower($index['indexdef']), 'using rtree ')!==false) {
                 $type = 'rtree';
@@ -933,16 +934,26 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      * query all over again.
      *
      * @param string $constraint
+     * @param bool $cache Flag whether a cached version should be used. Set to false to cache bust.
+     * @return false|array Either false, if the constraint doesn't exist, or an array
+     * with the keys conname and pg_get_constraintdef
      */
-    protected function constraintExists($constraint)
+    protected function constraintExists($constraint, $cache = true)
     {
-        if (!isset(self::$cached_constraints[$constraint])) {
-            $exists = $this->preparedQuery("
-				SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true)
-				FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname = ? ORDER BY 1;",
-                array($constraint)
+        if (!$cache || !isset(self::$cached_constraints[$constraint])) {
+            $value = $this->preparedQuery("
+                SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true)
+                FROM pg_catalog.pg_constraint r
+                INNER JOIN pg_catalog.pg_namespace n
+                  ON r.connamespace = n.oid
+                WHERE r.contype = 'c' AND conname = ? AND n.nspname = ?
+                ORDER BY 1;",
+                array($constraint, $this->database->currentSchema())
             )->first();
-            self::$cached_constraints[$constraint]=$exists;
+            if (!$cache) {
+                return $value;
+            }
+            self::$cached_constraints[$constraint] = $value;
         }
 
         return self::$cached_constraints[$constraint];
@@ -957,18 +968,21 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     public function tableDetails($tableName)
     {
         $query = "SELECT a.attname as \"Column\", pg_catalog.format_type(a.atttypid, a.atttypmod) as \"Datatype\"
-				FROM pg_catalog.pg_attribute a
-				WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attrelid = (
-					SELECT c.oid
-					FROM pg_catalog.pg_class c
-					LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-					WHERE c.relname = ? AND pg_catalog.pg_table_is_visible(c.oid) AND n.nspname = ?
-				);";
+                FROM pg_catalog.pg_attribute a
+                WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attrelid = (
+                    SELECT c.oid
+                    FROM pg_catalog.pg_class c
+                    LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relname = ? AND pg_catalog.pg_table_is_visible(c.oid) AND n.nspname = ?
+                );";
 
-        $result = $this->preparedQuery($query, $tableName, $this->database->currentSchema());
+        $result = $this->preparedQuery(
+            $query,
+            array($tableName, $this->database->currentSchema())
+        );
 
         $table = array();
-        while ($row = pg_fetch_assoc($result)) {
+        foreach ($result as $row) {
             $table[] = array(
                 'Column' => $row['Column'],
                 'DataType' => $row['DataType']
@@ -988,9 +1002,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     protected function dropTrigger($triggerName, $tableName)
     {
         $exists = $this->preparedQuery("
-			SELECT trigger_name
-			FROM information_schema.triggers
-			WHERE trigger_name = ? AND trigger_schema = ?;",
+            SELECT trigger_name
+            FROM information_schema.triggers
+            WHERE trigger_name = ? AND trigger_schema = ?;",
             array($triggerName, $this->database->currentSchema())
         )->first();
         if ($exists) {
@@ -1333,8 +1347,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         $this->dropTrigger($triggerName, $tableName);
         $triggers = "CREATE TRIGGER \"$triggerName\" BEFORE INSERT OR UPDATE
-					ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
-					tsvector_update_trigger(\"ts_$name\", 'pg_catalog.$language', $columns);";
+                    ON \"$tableName\" FOR EACH ROW EXECUTE PROCEDURE
+                    tsvector_update_trigger(\"ts_$name\", 'pg_catalog.$language', $columns);";
 
         return array(
             'name' => $name,
@@ -1433,7 +1447,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         //If a tablespace with this name exists, but the location has changed, then drop the current one
         //if($existing && $location!=$existing['spclocation'])
-        //	DB::query("DROP TABLESPACE $name;");
+        //    DB::query("DROP TABLESPACE $name;");
 
         //If this is a new tablespace, or we have dropped the current one:
         if (!$existing || ($existing && $location != $existing['spclocation'])) {
@@ -1471,12 +1485,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 $this->query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
             } else {
                 //Drop the constraint, we will recreate in in the next line
-                $existing_constraint = $this->preparedQuery(
-                    "SELECT conname FROM pg_constraint WHERE conname = ?;",
-                    array("{$partition_name}_pkey")
-                );
-                if ($existing_constraint) {
-                    $this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+                $constraintName = "{$partition_name}_pkey";
+                $constraintExists = $this->constraintExists($constraintName, false);
+                if ($constraintExists) {
+                    $this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$constraintName}\";");
                 }
                 $this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
             }
