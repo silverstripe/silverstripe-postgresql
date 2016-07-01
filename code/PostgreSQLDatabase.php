@@ -1,5 +1,21 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+use SilverStripe\ORM\Connect\SS_Database;
+use Config;
+use ErrorException;
+
+use Exception;
+
+
+use PaginatedList;
+use SilverStripe\ORM\DB;
+use SilverStripe\ORM\DataObject;
+use SilverStripe\ORM\ArrayList;
+
+
+
 /**
  * PostgreSQL connector class.
  * 
@@ -35,7 +51,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function default_fts_cluster_method()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'default_fts_cluster_method');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'default_fts_cluster_method');
     }
 
     /**
@@ -45,7 +61,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function default_fts_search_method()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'default_fts_search_method');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'default_fts_search_method');
     }
 
     /**
@@ -61,7 +77,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function allow_query_master_postgres()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'allow_query_master_postgres');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'allow_query_master_postgres');
     }
 
     /**
@@ -76,7 +92,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function model_schema_as_database()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'model_schema_as_database');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'model_schema_as_database');
     }
 
     /**
@@ -88,7 +104,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function search_language()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'search_language');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'search_language');
     }
 
     /**

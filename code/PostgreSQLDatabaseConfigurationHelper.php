@@ -1,4 +1,12 @@
 <?php
+
+namespace SilverStripe\PostgreSQL;
+
+use DatabaseConfigurationHelper;
+use PDO;
+use Exception;
+use DatabaseAdapterRegistry;
+
 /**
  * This is a helper class for the SS installer.
  * 

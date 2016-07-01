@@ -1,8 +1,16 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+
+use Deprecation;
+use Database;
+use SilverStripe\ORM\Connect\DBSchemaManager;
+
+
+
 /**
  * PostgreSQL schema manager
- * 
  * @package sapphire
  * @subpackage model
  */

@@ -1,4 +1,18 @@
 <?php
+
+namespace SilverStripe\PostgreSQL\Test;
+
+use SapphireTest;
+
+
+use Page;
+use Exception;
+
+use SilverStripe\ORM\DB;
+use SilverStripe\PostgreSQL\PostgreSQLDatabase;
+use SilverStripe\ORM\DataObject;
+
+
 /**
  * @package postgresql
  * @subpackage tests
