@@ -3,14 +3,21 @@ name: postgresqlconnectors
 ---
 Injector:
   PostgrePDODatabase:
-    class: 'PostgreSQLDatabase'
+    class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
     properties:
       connector: %$PDOConnector
       schemaManager: %$PostgreSQLSchemaManager
       queryBuilder: %$PostgreSQLQueryBuilder
   PostgreSQLDatabase:
-    class: 'PostgreSQLDatabase'
+    class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
     properties:
       connector: %$PostgreSQLConnector
       schemaManager: %$PostgreSQLSchemaManager
       queryBuilder: %$PostgreSQLQueryBuilder
+  PostgreSQLConnector:
+    class: 'SilverStripe\PostgreSQL\PostgreSQLConnector'
+    type: prototype
+  PostgreSQLSchemaManager:
+    class: 'SilverStripe\PostgreSQL\PostgreSQLSchemaManager'
+  PostgreSQLQueryBuilder:
+    class: 'SilverStripe\PostgreSQL\PostgreSQLQueryBuilder'

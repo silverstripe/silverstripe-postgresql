@@ -1,0 +1,9 @@
+mappings:
+  PostgreSQLConnector: SilverStripe\PostgreSQL\PostgreSQLConnector
+  PostgreSQLDatabase: SilverStripe\PostgreSQL\PostgreSQLDatabase
+  PostgreSQLDatabaseConfigurationHelper: SilverStripe\PostgreSQL\PostgreSQLDatabaseConfigurationHelper
+  PostgreSQLQuery: SilverStripe\PostgreSQL\PostgreSQLQuery
+  PostgreSQLQueryBuilder: SilverStripe\PostgreSQL\PostgreSQLQueryBuilder
+  PostgreSQLSchemaManager: SilverStripe\PostgreSQL\PostgreSQLSchemaManager
+  PostgreSQLConnectorTest: SilverStripe\PostgreSQL\Test\PostgreSQLConnectorTest
+  PostgreSQLDatabaseTest: SilverStripe\PostgreSQL\Test\PostgreSQLDatabaseTest

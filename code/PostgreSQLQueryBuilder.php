@@ -1,5 +1,15 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+
+
+use InvalidArgumentException;
+use SilverStripe\ORM\Queries\SQLSelect;
+use SilverStripe\ORM\Connect\DBQueryBuilder;
+
+
+
 class PostgreSQLQueryBuilder extends DBQueryBuilder
 {
     /**

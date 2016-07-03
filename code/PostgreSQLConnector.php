@@ -1,5 +1,13 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+
+use ErrorException;
+use SilverStripe\ORM\Connect\DBConnector;
+
+
+
 /**
  * PostgreSQL connector class using the PostgreSQL specific api
  * 

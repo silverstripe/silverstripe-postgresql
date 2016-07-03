@@ -1,5 +1,13 @@
 <?php
 
+namespace SilverStripe\PostgreSQL\Test;
+
+use SapphireTest;
+
+use SilverStripe\PostgreSQL\PostgreSQLConnector;
+
+
+
 /**
  * Description of PostgreSQLConnectorTest
  *
