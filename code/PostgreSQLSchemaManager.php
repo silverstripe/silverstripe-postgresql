@@ -239,11 +239,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $tableSpace = '';
         }
 
-        $this->query("CREATE TABLE \"$table\" (
-                $fieldSchemas
-                $fulltexts
-                primary key (\"ID\")
-            )$tableSpace; $indexSchemas $addOptions");
+            $this->query("CREATE TABLE \"$table\" (
+                    $fieldSchemas
+                    $fulltexts
+                    primary key (\"ID\")
+                )$tableSpace; $indexSchemas $addOptions");
 
         if ($triggers!='') {
             $this->query($triggers);
@@ -717,37 +717,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
     }
 
-    /*
-     * @todo - factor out? Is DBSchemaManager::convertIndexSpec sufficient?
-    public function convertIndexSpec($indexSpec, $asDbValue=false, $table=''){
-
-        if(!$asDbValue){
-            if(is_array($indexSpec)){
-                //Here we create a db-specific version of whatever index we need to create.
-                switch($indexSpec['type']){
-                    case 'fulltext':
-                        $indexSpec='fulltext (' . $indexSpec['value'] . ')';
-                        break;
-                    case 'unique':
-                        $indexSpec='unique (' . $indexSpec['value'] . ')';
-                        break;
-                    case 'hash':
-                        $indexSpec='using hash (' . $indexSpec['value'] . ')';
-                        break;
-                    case 'index':
-                        //The default index is 'btree', which we'll use by default (below):
-                    default:
-                        $indexSpec='using btree (' . $indexSpec['value'] . ')';
-                        break;
-                }
-            }
-        } else {
-            $indexSpec = $this->buildPostgresIndexName($table, $indexSpec);
-        }
-        return $indexSpec;
-    }*/
-
-    protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec, $asDbValue=false)
+    protected function getIndexSqlDefinition($tableName, $indexName, $indexSpec)
     {
 
         //TODO: create table partition support
@@ -756,12 +726,6 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         //NOTE: it is possible for *_renamed tables to have indexes whose names are not updates
         //Therefore, we now check for the existance of indexes before we create them.
         //This is techically a bug, since new tables will not be indexed.
-
-        // If requesting the definition rather than the DDL
-        if ($asDbValue) {
-            $indexName=trim($indexName, '()');
-            return $indexName;
-        }
 
         // Determine index name
         $tableCol = $this->buildPostgresIndexName($tableName, $indexName);
