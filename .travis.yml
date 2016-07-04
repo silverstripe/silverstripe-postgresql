@@ -17,5 +17,5 @@ before_script:
  - php ~/travis-support/travis_setup.php --source `pwd` --target ~/builds/ss
  - cd ~/builds/ss
 
-script: 
- - phpunit framework/tests 
+script:
+ - vendor/bin/phpunit framework/tests

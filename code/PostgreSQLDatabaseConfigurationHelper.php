@@ -1,17 +1,25 @@
 <?php
+
+namespace SilverStripe\PostgreSQL;
+
+use DatabaseConfigurationHelper;
+use PDO;
+use Exception;
+use DatabaseAdapterRegistry;
+
 /**
  * This is a helper class for the SS installer.
- * 
+ *
  * It does all the specific checking for PostgreSQLDatabase
  * to ensure that the configuration is setup correctly.
- * 
+ *
  * @package postgresql
  */
 class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelper
 {
     /**
      * Create a connection of the appropriate type
-     * 
+     *
      * @param array $databaseConfig
      * @param string $error Error message passed by value
      * @return mixed|null Either the connection object, or null if error
@@ -22,7 +30,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
         $username = empty($databaseConfig['username']) ? '' : $databaseConfig['username'];
         $password = empty($databaseConfig['password']) ? '' : $databaseConfig['password'];
         $server = $databaseConfig['server'];
-        
+
         try {
             switch ($databaseConfig['type']) {
                 case 'PostgreSQLDatabase':
@@ -95,7 +103,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
 
     /**
      * Ensure that the PostgreSQL version is at least 8.3.
-     * 
+     *
      * @param array $databaseConfig Associative array of db configuration, e.g. "server", "username" etc
      * @return array Result - e.g. array('success' => true, 'error' => 'details of error')
      */
@@ -119,28 +127,10 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
             'error' => $error
         );
     }
-    
-    /**
-     * Helper function to quote a string value
-     * 
-     * @param mixed $conn Connection object/resource
-     * @param string $value Value to quote
-     * @return string Quoted strieng
-     */
-    protected function quote($conn, $value)
-    {
-        if ($conn instanceof PDO) {
-            return $conn->quote($value);
-        } elseif (is_resource($conn)) {
-            return "'".pg_escape_string($conn, $value)."'";
-        } else {
-            user_error('Invalid database connection', E_USER_ERROR);
-        }
-    }
-    
+
     /**
      * Helper function to execute a query
-     * 
+     *
      * @param mixed $conn Connection object/resource
      * @param string $sql SQL string to execute
      * @return array List of first value from each resulting row
@@ -178,7 +168,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
                 $success = in_array($databaseConfig['username'], $allowedUsers);
             }
         }
-        
+
         return array(
             'success' => $success,
             'alreadyExists' => $alreadyExists

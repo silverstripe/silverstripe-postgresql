@@ -1,12 +1,17 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+use SilverStripe\ORM\Connect\DBConnector;
+use ErrorException;
+
 /**
  * PostgreSQL connector class using the PostgreSQL specific api
- * 
+ *
  * The connector doesn't know anything about schema selection, so code related to
  * masking multiple databases as schemas should be handled in the database controller
  * and schema manager.
- * 
+ *
  * @package sapphire
  * @subpackage model
  */
@@ -14,21 +19,21 @@ class PostgreSQLConnector extends DBConnector
 {
     /**
      * Connection to the PG Database database
-     * 
+     *
      * @var resource
      */
     protected $dbConn = null;
 
     /**
      * Name of the currently selected database
-     * 
+     *
      * @var string
      */
     protected $databaseName = null;
 
     /**
      * Reference to the last query result (for pg_affected_rows)
-     * 
+     *
      * @var resource
      */
     protected $lastQuery = null;
@@ -44,7 +49,7 @@ class PostgreSQLConnector extends DBConnector
 
     /**
      * Escape a parameter to be used in the connection string
-     * 
+     *
      * @param array $parameters All parameters
      * @param string $key The key in $parameters to pull from
      * @param string $name The connection string parameter name
@@ -85,7 +90,7 @@ class PostgreSQLConnector extends DBConnector
         if ($this->dbConn) {
             pg_close($this->dbConn);
         }
-        
+
         // Connect
         $this->dbConn = @pg_connect(implode(' ', $arguments));
         if ($this->dbConn === false) {
@@ -143,13 +148,13 @@ class PostgreSQLConnector extends DBConnector
     /**
      * Determines if the SQL fragment either breaks into or out of a string literal
      * by counting single quotes
-     * 
+     *
      * Handles double-quote escaped quotes as well as slash escaped quotes
-     * 
+     *
      * @todo Test this!
-     * 
+     *
      * @see http://www.postgresql.org/docs/8.3/interactive/sql-syntax-lexical.html#SQL-SYNTAX-STRINGS
-     * 
+     *
      * @param string $input The SQL fragment
      * @return boolean True if the string breaks into or out of a string literal
      */
@@ -167,9 +172,9 @@ class PostgreSQLConnector extends DBConnector
     /**
      * Iteratively replaces all question marks with numerical placeholders
      * E.g. "Title = ? AND Name = ?" becomes "Title = $1 AND Name = $2"
-     * 
+     *
      * @todo Better consider question marks in string literals
-     * 
+     *
      * @param string $sql Paramaterised query using question mark placeholders
      * @return string Paramaterised query using numeric placeholders
      */
@@ -216,18 +221,20 @@ class PostgreSQLConnector extends DBConnector
         }
 
         // Execute query
+        // Unfortunately error-suppression is required in order to handle sql errors elegantly.
+        // Please use PDO if you can help it
         if (!empty($parameters)) {
-            $result = pg_query_params($this->dbConn, $sql, $parameters);
+            $result = @pg_query_params($this->dbConn, $sql, $parameters);
         } else {
-            $result = pg_query($this->dbConn, $sql);
+            $result = @pg_query($this->dbConn, $sql);
         }
-        
+
         // Handle error
-        if ($result === false) {
+        if (!$result) {
             $this->databaseError($this->getLastError(), $errorLevel, $sql, $parameters);
             return null;
         }
-        
+
         // Save and return results
         $this->lastQuery = $result;
         $this->lastRows = pg_affected_rows($result);
@@ -251,16 +258,6 @@ class PostgreSQLConnector extends DBConnector
     public function escapeString($value)
     {
         return pg_escape_string($this->dbConn, $value);
-    }
-
-    public function escapeIdentifier($value, $separator = '.')
-    {
-        if (empty($separator) && function_exists('pg_escape_identifier')) {
-            return pg_escape_identifier($this->dbConn, $value);
-        }
-
-        // Let parent function handle recursive calls
-        return parent::escapeIdentifier($value, $separator);
     }
 
     public function selectDatabase($name)

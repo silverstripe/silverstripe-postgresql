@@ -1,5 +1,7 @@
 <?php
 
+use SilverStripe\PostgreSQL\PostgreSQLConnector;
+
 /**
  * Description of PostgreSQLConnectorTest
  *

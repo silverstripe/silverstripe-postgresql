@@ -1,8 +1,12 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+use SilverStripe\ORM\Connect\SS_Query;
+
 /**
  * A result-set from a PostgreSQL database.
- * 
+ *
  * @package sapphire
  * @subpackage model
  */
@@ -16,8 +20,7 @@ class PostgreSQLQuery extends SS_Query
 
     /**
      * Hook the result-set given into a Query class, suitable for use by sapphire.
-     * @param database The database object that created this query.
-     * @param handle the internal Postgres handle that is points to the resultset.
+     * @param resource $handle the internal Postgres handle that is points to the resultset.
      */
     public function __construct($handle)
     {

@@ -1,5 +1,11 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+use SilverStripe\ORM\Queries\SQLSelect;
+use SilverStripe\ORM\Connect\DBQueryBuilder;
+use InvalidArgumentException;
+
 class PostgreSQLQueryBuilder extends DBQueryBuilder
 {
     /**
@@ -18,7 +24,7 @@ class PostgreSQLQueryBuilder extends DBQueryBuilder
         if (empty($limit)) {
             return '';
         }
-        
+
         // For literal values return this as the limit SQL
         if (! is_array($limit)) {
             return "{$nl}LIMIT $limit";
@@ -34,7 +40,7 @@ class PostgreSQLQueryBuilder extends DBQueryBuilder
         if ($limit['limit'] === null) {
             $limit['limit'] = 'ALL';
         }
-        
+
         $clause = "{$nl}LIMIT {$limit['limit']}";
         if (isset($limit['start']) && is_numeric($limit['start']) && $limit['start'] !== 0) {
             $clause .= " OFFSET {$limit['start']}";
