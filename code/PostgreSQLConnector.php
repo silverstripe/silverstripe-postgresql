@@ -221,14 +221,16 @@ class PostgreSQLConnector extends DBConnector
         }
 
         // Execute query
+        // Unfortunately error-suppression is required in order to handle sql errors elegantly.
+        // Please use PDO if you can help it
         if (!empty($parameters)) {
-            $result = pg_query_params($this->dbConn, $sql, $parameters);
+            $result = @pg_query_params($this->dbConn, $sql, $parameters);
         } else {
-            $result = pg_query($this->dbConn, $sql);
+            $result = @pg_query($this->dbConn, $sql);
         }
 
         // Handle error
-        if ($result === false) {
+        if (!$result) {
             $this->databaseError($this->getLastError(), $errorLevel, $sql, $parameters);
             return null;
         }
