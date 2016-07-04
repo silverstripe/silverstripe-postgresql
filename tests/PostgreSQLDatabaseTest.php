@@ -1,4 +1,9 @@
 <?php
+
+use SilverStripe\ORM\DB;
+use SilverStripe\ORM\DataObject;
+use SilverStripe\PostgreSQL\PostgreSQLDatabase;
+
 /**
  * @package postgresql
  * @subpackage tests

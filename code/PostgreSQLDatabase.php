@@ -1,8 +1,19 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+use SilverStripe\ORM\DB;
+use SilverStripe\ORM\DataObject;
+use SilverStripe\ORM\ArrayList;
+use SilverStripe\ORM\Connect\SS_Database;
+use Config;
+use ErrorException;
+use Exception;
+use PaginatedList;
+
 /**
  * PostgreSQL connector class.
- * 
+ *
  * @package sapphire
  * @subpackage model
  */
@@ -10,14 +21,14 @@ class PostgreSQLDatabase extends SS_Database
 {
     /**
      * Database schema manager object
-     * 
+     *
      * @var PostgreSQLSchemaManager
      */
     protected $schemaManager;
 
     /**
      * The currently selected database schema name.
-     * 
+     *
      * @var string
      */
     protected $schema;
@@ -30,22 +41,22 @@ class PostgreSQLDatabase extends SS_Database
 
     /**
      * Full text cluster method. (e.g. GIN or GiST)
-     * 
+     *
      * @return string
      */
     public static function default_fts_cluster_method()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'default_fts_cluster_method');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'default_fts_cluster_method');
     }
 
     /**
      * Full text search method.
-     * 
+     *
      * @return string
      */
     public static function default_fts_search_method()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'default_fts_search_method');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'default_fts_search_method');
     }
 
     /**
@@ -55,13 +66,13 @@ class PostgreSQLDatabase extends SS_Database
      * Some locked down systems prevent access to the 'postgres' table in
      * which case you need to set this to false.
      *
-     * If allow_query_master_postgres is false, and model_schema_as_database is also false, 
+     * If allow_query_master_postgres is false, and model_schema_as_database is also false,
      * then attempts to create or check databases beyond the initial connection will
      * result in a runtime error.
      */
     public static function allow_query_master_postgres()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'allow_query_master_postgres');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'allow_query_master_postgres');
     }
 
     /**
@@ -70,13 +81,13 @@ class PostgreSQLDatabase extends SS_Database
      * instead of using databases. This may be useful if the database user does not
      * have cross-database permissions, and in cases where multiple databases are used
      * (such as in running test cases).
-     * 
+     *
      * If this is true then the database will only be set during the initial connection,
      * and attempts to change to this database will use the 'public' schema instead
      */
     public static function model_schema_as_database()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'model_schema_as_database');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'model_schema_as_database');
     }
 
     /**
@@ -84,16 +95,16 @@ class PostgreSQLDatabase extends SS_Database
      * could be any of the supported languages that can be found in the
      * pg_catalog.pg_ts_config table.
      *
-     * @var string
+     * @return string
      */
     public static function search_language()
     {
-        return Config::inst()->get('PostgreSQLDatabase', 'search_language');
+        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'search_language');
     }
 
     /**
      * The database name specified at initial connection
-     * 
+     *
      * @var string
      */
     protected $databaseOriginal = '';
@@ -183,7 +194,7 @@ class PostgreSQLDatabase extends SS_Database
 
     /**
      * Sets the system timezone for the database connection
-     * 
+     *
      * @param string $timezone
      */
     public function selectTimezone($timezone)
@@ -211,7 +222,7 @@ class PostgreSQLDatabase extends SS_Database
 
     /**
      * Returns the name of the current schema in use
-     * 
+     *
      * @return string Name of current schema
      */
     public function currentSchema()
@@ -222,8 +233,8 @@ class PostgreSQLDatabase extends SS_Database
     /**
      * Utility method to manually set the schema to an alternative
      * Check existance & sets search path to the supplied schema name
-     * 
-     * @param string $name Name of the schema
+     *
+     * @param string $schema Name of the schema
      * @param boolean $create Flag indicating whether the schema should be created
      * if it doesn't exist. If $create is false and the schema doesn't exist
      * then an error will be raised
@@ -256,14 +267,12 @@ class PostgreSQLDatabase extends SS_Database
      * the search path is provided as an advanced PostgreSQL feature for raw
      * SQL queries. Sapphire cannot search for datamodel tables in alternate
      * schemas, so be wary of using alternate schemas within the ORM environment.
-     * 
-     * @param string $arg1 First schema to use
-     * @param string $arg2 Second schema to use
-     * @param string $argN Nth schema to use
+     *
+     * @param string ...$arg Schema name to use. Add additional schema names as extra arguments.
      */
-    public function setSchemaSearchPath()
+    public function setSchemaSearchPath($arg = null)
     {
-        if (func_num_args() == 0) {
+        if (!$arg) {
             user_error('At least one Schema must be supplied to set a search path.', E_USER_ERROR);
         }
         $schemas = array_values(func_get_args());
@@ -274,8 +283,17 @@ class PostgreSQLDatabase extends SS_Database
      * The core search engine configuration.
      * @todo Properly extract the search functions out of the core.
      *
+     * @param array $classesToSearch
      * @param string $keywords Keywords as a space separated string
-     * @return object DataObjectSet of result pages
+     * @param int $start
+     * @param int $pageLength
+     * @param string $sortBy
+     * @param string $extraFilter
+     * @param bool $booleanSearch
+     * @param string $alternativeFileFilter
+     * @param bool $invertedMatch
+     * @return PaginatedList List of result pages
+     * @throws Exception
      */
     public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false)
     {
@@ -580,7 +598,7 @@ class PostgreSQLDatabase extends SS_Database
      * Determines the name of the current database to be reported externally
      * by substituting the schema name for the database name.
      * Should only be used when model_schema_as_database is true
-     * 
+     *
      * @param string $schema Name of the schema
      * @return string Name of the database to report
      */
@@ -595,7 +613,7 @@ class PostgreSQLDatabase extends SS_Database
     /**
      * Translates a requested database name to a schema name to substitute internally.
      * Should only be used when model_schema_as_database is true
-     * 
+     *
      * @param string $database Name of the database
      * @return string Name of the schema to use for this database internally
      */
@@ -613,7 +631,7 @@ class PostgreSQLDatabase extends SS_Database
             // Check current schema is valid
             $oldSchema = $this->schema;
             if (empty($oldSchema)) {
-                return true;
+                return;
             } // Nothing selected to drop
 
             // Select another schema
@@ -667,6 +685,7 @@ class PostgreSQLDatabase extends SS_Database
         // New connection made here, treating the new database name as the new original
         $this->databaseOriginal = $name;
         $this->connectDefault();
+        return true;
     }
 
     /**

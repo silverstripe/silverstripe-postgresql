@@ -1,22 +1,28 @@
 <?php
 
+namespace SilverStripe\PostgreSQL;
+
+use SilverStripe\ORM\Connect\DBSchemaManager;
+use SilverStripe\ORM\DB;
+use Deprecation;
+
 /**
  * PostgreSQL schema manager
- * 
+ *
  * @package sapphire
  * @subpackage model
  */
 class PostgreSQLSchemaManager extends DBSchemaManager
 {
     /**
-     * Identifier for this schema, used for configuring schema-specific table 
+     * Identifier for this schema, used for configuring schema-specific table
      * creation options
      */
     const ID = 'PostgreSQL';
 
     /**
      * Instance of the database controller this schema belongs to
-     * 
+     *
      * @var PostgreSQLDatabase
      */
     protected $database = null;
@@ -47,7 +53,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Creates a postgres database, ignoring model_schema_as_database
-     * 
+     *
      * @param string $name
      */
     public function createPostgresDatabase($name)
@@ -66,7 +72,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Determines if a postgres database exists, ignoring model_schema_as_database
-     * 
+     *
      * @param string $name
      * @return boolean
      */
@@ -87,7 +93,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Determines the list of all postgres databases, ignoring model_schema_as_database
-     * 
+     *
      * @return array
      */
     public function postgresDatabaseList()
@@ -109,7 +115,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     }
     /**
      * Drops a postgres database, ignoring model_schema_as_database
-     * 
+     *
      * @param string $name
      */
     public function dropPostgresDatabase($name)
@@ -122,14 +128,15 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     {
         if (PostgreSQLDatabase::model_schema_as_database()) {
             $schemaName = $this->database->databaseToSchemaName($name);
-            return $this->dropSchema($schemaName);
+            $this->dropSchema($schemaName);
+            return;
         }
         $this->dropPostgresDatabase($name);
     }
 
     /**
      * Returns true if the schema exists in the current database
-     * 
+     *
      * @param string $name
      * @return boolean
      */
@@ -143,7 +150,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Creates a schema in the current database
-     * 
+     *
      * @param string $name
      */
     public function createSchema($name)
@@ -154,7 +161,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Drops a schema from the database. Use carefully!
-     * 
+     *
      * @param string $name
      */
     public function dropSchema($name)
@@ -165,7 +172,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Returns the list of all available schemas on the current database
-     * 
+     *
      * @return array
      */
     public function schemaList()
@@ -257,9 +264,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Builds the internal Postgres index name given the silverstripe table and index name
-     * 
+     *
      * @param string $tableName
-     * @param string $indexName 
+     * @param string $indexName
      * @param string $prefix The optional prefix for the index. Defaults to "ix" for indexes.
      * @return string The postgres name of the index
      */
@@ -281,7 +288,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Builds the internal Postgres trigger name given the silverstripe table and trigger name
-     * 
+     *
      * @param string $tableName
      * @param string $triggerName
      * @return string The postgres name of the trigger
@@ -400,7 +407,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         if ($alteredOptions && isset($this->class) && isset($alteredOptions[$this->class])) {
             $this->query(sprintf("ALTER TABLE \"%s\" %s", $table, $alteredOptions[$this->class]));
-            Database::alteration_message(
+            DB::alteration_message(
                 sprintf("Table %s options changed: %s", $table, $alteredOptions[$this->class]),
                 "changed"
             );
@@ -563,7 +570,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Change the database type of the given field.
-     * 
+     *
      * @param string $tableName The name of the tbale the field is in.
      * @param string $fieldName The name of the field to change.
      * @param string $fieldSpec The new field specification
@@ -697,7 +704,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * Create an index on a table.
-     * 
+     *
      * @param string $tableName The name of the table.
      * @param string $indexName The name of the index.
      * @param string $indexSpec The specification of the index, see Database::requireIndex() for more details.
@@ -773,7 +780,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         //create a type-specific index
         // NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made
-        // NOTE: Quote the index name to preserve case sensitivity 
+        // NOTE: Quote the index name to preserve case sensitivity
         switch ($indexSpec['type']) {
             case 'fulltext':
                 // @see fulltext() for the definition of the trigger that ts_$IndexName uses for fulltext searching
@@ -808,6 +815,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         if ($indexSpec[0] != '(') {
             list($indexType, $indexFields) = explode(' ', $indexSpec, 2);
         } else {
+            $indexType = null;
             $indexFields = $indexSpec;
         }
 
@@ -961,7 +969,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     /**
      * A function to return the field names and datatypes for the particular table
-     * 
+     *
      * @param string $tableName
      * @return array List of columns an an associative array with the keys Column and DataType
      */
@@ -1045,28 +1053,12 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      * Return a boolean type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function boolean($values, $asDbValue=false)
+    public function boolean($values)
     {
-        //Annoyingly, we need to do a good ol' fashioned switch here:
         $default = $values['default'] ? '1' : '0';
-
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        if ($asDbValue) {
-            return array('data_type'=>'smallint');
-        }
-
-        if ($values['arrayValue'] != '') {
-            $default = '';
-        } else {
-            $default = ' default ' . (int)$values['default'];
-        }
-        return "smallint{$values['arrayValue']}" . $default;
+        return "smallint default {$default}";
     }
 
     /**
@@ -1077,26 +1069,17 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     public function date($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        return "date{$values['arrayValue']}";
+        return "date";
     }
 
     /**
      * Return a decimal type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function decimal($values, $asDbValue=false)
+    public function decimal($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
         // Avoid empty strings being put in the db
         if ($values['precision'] == '') {
             $precision = 1;
@@ -1109,11 +1092,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $defaultValue = ' default ' . floatval($values['default']);
         }
 
-        if ($asDbValue) {
-            return array('data_type' => 'numeric', 'precision' => $precision);
-        } else {
-            return "decimal($precision){$values['arrayValue']}$defaultValue";
-        }
+        return "decimal($precision)$defaultValue";
     }
 
     /**
@@ -1124,103 +1103,52 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     public function enum($values)
     {
-        //Enums are a bit different. We'll be creating a varchar(255) with a constraint of all the usual enum options.
-        //NOTE: In this one instance, we are including the table name in the values array
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        if ($values['arrayValue']!='') {
-            $default = '';
-        } else {
-            $default = " default '{$values['default']}'";
-        }
-
-        return "varchar(255){$values['arrayValue']}" . $default . " check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
+        $default = " default '{$values['default']}'";
+        return "varchar(255)" . $default . " check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
     }
 
     /**
      * Return a float type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function float($values, $asDbValue = false)
+    public function float($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        if ($asDbValue) {
-            return array('data_type' => 'double precision');
-        } else {
-            return "float{$values['arrayValue']}";
-        }
+        return "float";
     }
 
     /**
      * Return a float type-formatted string cause double is not supported
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function double($values, $asDbValue=false)
+    public function double($values)
     {
-        return $this->float($values, $asDbValue);
+        return $this->float($values);
     }
 
     /**
      * Return a int type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function int($values, $asDbValue = false)
+    public function int($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        if ($asDbValue) {
-            return array('data_type'=>'integer', 'precision'=>'32');
-        }
-
-        if ($values['arrayValue']!='') {
-            $default='';
-        } else {
-            $default=' default ' . (int)$values['default'];
-        }
-
-        return "integer{$values['arrayValue']}" . $default;
+        return "integer default " . (int)$values['default'];
     }
 
     /**
      * Return a bigint type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function bigint($values, $asDbValue = false)
+    public function bigint($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        if ($asDbValue) {
-            return array('data_type'=>'bigint', 'precision'=>'64');
-        }
-
-        if ($values['arrayValue']!='') {
-            $default='';
-        } else {
-            $default=' default ' . (int)$values['default'];
-        }
-
-        return "bigint{$values['arrayValue']}" . $default;
+        return "bigint default" . (int)$values['default'];
     }
 
     /**
@@ -1228,40 +1156,22 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      * For PostgreSQL, we simply return the word 'timestamp', no other parameters are necessary
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function SS_Datetime($values, $asDbValue = false)
+    public function datetime($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue']='';
-        }
-
-        if ($asDbValue) {
-            return array('data_type'=>'timestamp without time zone');
-        } else {
-            return "timestamp{$values['arrayValue']}";
-        }
+        return "timestamp";
     }
 
     /**
      * Return a text type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function text($values, $asDbValue = false)
+    public function text($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue'] = '';
-        }
-
-        if ($asDbValue) {
-            return array('data_type'=>'text');
-        } else {
-            return "text{$values['arrayValue']}";
-        }
+        return "text";
     }
 
     /**
@@ -1272,57 +1182,34 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     public function time($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue'] = '';
-        }
-
-        return "time{$values['arrayValue']}";
+        return "time";
     }
 
     /**
      * Return a varchar type-formatted string
      *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function varchar($values, $asDbValue=false)
+    public function varchar($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue'] = '';
-        }
-
         if (!isset($values['precision'])) {
             $values['precision'] = 255;
         }
 
-        if ($asDbValue) {
-            return array('data_type'=>'varchar', 'precision'=>$values['precision']);
-        } else {
-            return "varchar({$values['precision']}){$values['arrayValue']}";
-        }
+        return "varchar({$values['precision']})";
     }
 
     /*
      * Return a 4 digit numeric type.  MySQL has a proprietary 'Year' type.
      * For Postgres, we'll use a 4 digit numeric
-     * 
+     *
      * @param array $values Contains a tokenised list of info about this data type
-     * @param boolean $asDbValue
      * @return string
      */
-    public function year($values, $asDbValue = false)
+    public function year($values)
     {
-        if (!isset($values['arrayValue'])) {
-            $values['arrayValue'] = '';
-        }
-
-        //TODO: the DbValue result does not include the numeric_scale option (ie, the ,0 value in 4,0)
-        if ($asDbValue) {
-            return array('data_type'=>'decimal', 'precision'=>'4');
-        } else {
-            return "decimal(4,0){$values['arrayValue']}";
-        }
+        return "decimal(4,0)";
     }
 
     /**
@@ -1334,7 +1221,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      * @param array $this_index Index specification for the fulltext index
      * @param string $tableName
      * @param string $name
-     * @param array $spec
+     * @return array
      */
     protected function fulltext($this_index, $tableName, $name)
     {
@@ -1431,7 +1318,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     /*
      * Given a tablespace and and location, either create a new one
      * or update the existing one
-     * 
+     *
      * @param string $name
      * @param string $location
      */
@@ -1456,13 +1343,13 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     }
 
     /**
-     * 
+     *
      * @param string $tableName
      * @param array $partitions
      * @param array $indexes
      * @param array $extensions
      */
-    public function createOrReplacePartition($tableName, $partitions, $indexes, $extensions)
+    public function createOrReplacePartition($tableName, $partitions, $indexes = [], $extensions = [])
     {
 
         //We need the plpgsql language to be installed for this to work:
@@ -1550,7 +1437,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     /*
      * This will create a language if it doesn't already exist.
      * This is used by the createOrReplacePartition function, which needs plpgsql
-     * 
+     *
      * @param string $language Language name
      */
     public function createLanguage($language)
