@@ -2,6 +2,7 @@
 
 // PDO Postgre database
 DatabaseAdapterRegistry::register(array(
+    /** @skipUpgrade */
     'class' => 'PostgrePDODatabase',
     'title' => 'PostgreSQL 8.3+ (using PDO)',
     'helperPath' => dirname(__FILE__).'/code/PostgreSQLDatabaseConfigurationHelper.php',
@@ -15,6 +16,7 @@ DatabaseAdapterRegistry::register(array(
 
 // PDO Postgre database
 DatabaseAdapterRegistry::register(array(
+    /** @skipUpgrade */
     'class' => 'PostgreSQLDatabase',
     'title' => 'PostgreSQL 8.3+ (using pg_connect)',
     'helperPath' => dirname(__FILE__).'/code/PostgreSQLDatabaseConfigurationHelper.php',
