@@ -2,6 +2,7 @@
 
 namespace SilverStripe\PostgreSQL;
 
+use SilverStripe\Framework\Core\Configurable;
 use SilverStripe\ORM\DB;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ArrayList;
@@ -19,6 +20,8 @@ use PaginatedList;
  */
 class PostgreSQLDatabase extends SS_Database
 {
+    use Configurable;
+
     /**
      * Database schema manager object
      *
@@ -33,7 +36,65 @@ class PostgreSQLDatabase extends SS_Database
      */
     protected $schema;
 
+    /**
+     * Toggle if transactions are supported. Defaults to true.
+     *
+     * @var bool
+     */
     protected $supportsTransactions = true;
+
+    /**
+     * Determines whether to check a database exists on the host by
+     * querying the 'postgres' database and running createDatabase.
+     *
+     * Some locked down systems prevent access to the 'postgres' table in
+     * which case you need to set this to false.
+     *
+     * If allow_query_master_postgres is false, and model_schema_as_database is also false,
+     * then attempts to create or check databases beyond the initial connection will
+     * result in a runtime error.
+     *
+     * @config
+     * @var bool
+     */
+    private static $allow_query_master_postgres = true;
+
+    /**
+     * For instances where multiple databases are used beyond the initial connection
+     * you may set this option to true to force database switches to switch schemas
+     * instead of using databases. This may be useful if the database user does not
+     * have cross-database permissions, and in cases where multiple databases are used
+     * (such as in running test cases).
+     *
+     * If this is true then the database will only be set during the initial connection,
+     * and attempts to change to this database will use the 'public' schema instead
+     *
+     * If this is false then errors may be generated during some cross database operations.
+     */
+    private static $model_schema_as_database = true;
+
+    /**
+     * Override the language that tsearch uses.  By default it is 'english, but
+     * could be any of the supported languages that can be found in the
+     * pg_catalog.pg_ts_config table.
+     */
+    private static $search_language = 'english';
+
+    /*
+     * Describe how T-search will work.
+     * You can use either GiST or GIN, and '@@' (gist) or '@@@' (gin)
+     * Combinations of these two will also work, so you'll need to pick
+     * one which works best for you
+     */
+    private static $default_fts_cluster_method = 'GIN';
+
+    /*
+     * Describe how T-search will work.
+     * You can use either GiST or GIN, and '@@' (gist) or '@@@' (gin)
+     * Combinations of these two will also work, so you'll need to pick
+     * one which works best for you
+     */
+    private static $default_fts_search_method = '@@@';
 
     const MASTER_DATABASE = 'postgres';
 
@@ -46,7 +107,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function default_fts_cluster_method()
     {
-        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'default_fts_cluster_method');
+        return static::config()->default_fts_cluster_method;
     }
 
     /**
@@ -56,7 +117,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function default_fts_search_method()
     {
-        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'default_fts_search_method');
+        return static::config()->default_fts_search_method;
     }
 
     /**
@@ -69,10 +130,12 @@ class PostgreSQLDatabase extends SS_Database
      * If allow_query_master_postgres is false, and model_schema_as_database is also false,
      * then attempts to create or check databases beyond the initial connection will
      * result in a runtime error.
+     *
+     * @return bool
      */
     public static function allow_query_master_postgres()
     {
-        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'allow_query_master_postgres');
+        return static::config()->allow_query_master_postgres;
     }
 
     /**
@@ -84,10 +147,12 @@ class PostgreSQLDatabase extends SS_Database
      *
      * If this is true then the database will only be set during the initial connection,
      * and attempts to change to this database will use the 'public' schema instead
+     *
+     * @return bool
      */
     public static function model_schema_as_database()
     {
-        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'model_schema_as_database');
+        return static::config()->model_schema_as_database;
     }
 
     /**
@@ -99,7 +164,7 @@ class PostgreSQLDatabase extends SS_Database
      */
     public static function search_language()
     {
-        return Config::inst()->get('SilverStripe\\PostgreSQL\\PostgreSQLDatabase', 'search_language');
+        return static::config()->search_language;
     }
 
     /**
