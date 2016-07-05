@@ -31,6 +31,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
         $password = empty($databaseConfig['password']) ? '' : $databaseConfig['password'];
         $server = $databaseConfig['server'];
 
+        /** @skipUpgrade */
         try {
             switch ($databaseConfig['type']) {
                 case 'PostgreSQLDatabase':
