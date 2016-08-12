@@ -2,12 +2,12 @@
 
 namespace SilverStripe\PostgreSQL;
 
+use Injector;
 use SilverStripe\Framework\Core\Configurable;
 use SilverStripe\ORM\DB;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\ORM\Connect\SS_Database;
-use Config;
 use ErrorException;
 use Exception;
 use PaginatedList;
@@ -369,18 +369,25 @@ class PostgreSQLDatabase extends SS_Database
         $keywords= str_replace(' ', ' | ', $keywords);
         $keywords= str_replace('"', "'", $keywords);
 
+
         $keywords = $this->quoteString(trim($keywords));
+
+        // Get tables
+        $tablesToSearch = [];
+        foreach($classesToSearch as $class) {
+            $tablesToSearch[$class] = DataObject::getSchema()->baseDataTable($class);
+        }
 
         //We can get a list of all the tsvector columns though this query:
         //We know what tables to search in based on the $classesToSearch variable:
         $classesPlaceholders = DB::placeholders($classesToSearch);
-        $result = $this->preparedQuery("
+        $searchableColumns = $this->preparedQuery("
 			SELECT table_name, column_name, data_type
 			FROM information_schema.columns
 			WHERE data_type='tsvector' AND table_name in ($classesPlaceholders);",
-            $classesToSearch
+            array_values($tablesToSearch)
         );
-        if (!$result->numRecords()) {
+        if (!$searchableColumns->numRecords()) {
             throw new Exception('there are no full text columns to search');
         }
 
@@ -388,10 +395,12 @@ class PostgreSQLDatabase extends SS_Database
         $tableParameters = array();
 
         // Make column selection lists
+        $pageClass = 'SilverStripe\\CMS\\Model\\SiteTree';
+        $fileClass = 'File';
         $select = array(
-            'SiteTree' => array(
+            $pageClass => array(
                 '"ClassName"',
-                '"SiteTree"."ID"',
+                '"' . $tablesToSearch[$pageClass] . '"."ID"',
                 '"ParentID"',
                 '"Title"',
                 '"URLSegment"',
@@ -401,9 +410,9 @@ class PostgreSQLDatabase extends SS_Database
                 'NULL AS "Name"',
                 '"CanViewType"'
             ),
-            'File' => array(
+            $fileClass => array(
                 '"ClassName"',
-                '"File"."ID"',
+                '"' . $tablesToSearch[$fileClass] . '"."ID"',
                 '0 AS "ParentID"',
                 '"Title"',
                 'NULL AS "URLSegment"',
@@ -415,15 +424,18 @@ class PostgreSQLDatabase extends SS_Database
             )
         );
 
-        foreach ($result as $row) {
+        foreach ($searchableColumns as $searchableColumn) {
             $conditions = array();
-            if ($row['table_name'] === 'SiteTree' || $row['table_name'] === 'File') {
+            $tableName = $searchableColumn['table_name'];
+            $columnName = $searchableColumn['column_name'];
+            $className = DataObject::getSchema()->tableClass($tableName);
+            if (DataObject::singleton($className)->db('ShowInSearch')) {
                 $conditions[] = array('"ShowInSearch"' => 1);
             }
 
             $method = self::default_fts_search_method();
-            $conditions[] = "\"{$row['table_name']}\".\"{$row['column_name']}\" $method q ";
-            $query = DataObject::get($row['table_name'], $conditions)->dataQuery()->query();
+            $conditions[] = "\"{$tableName}\".\"{$columnName}\" $method q ";
+            $query = DataObject::get($className, $conditions)->dataQuery()->query();
 
             // Could parameterise this, but convention is only to to so for where conditions
             $query->addFrom(array(
@@ -431,7 +443,7 @@ class PostgreSQLDatabase extends SS_Database
             ));
             $query->setSelect(array());
 
-            foreach ($select[$row['table_name']] as $clause) {
+            foreach ($select[$className] as $clause) {
                 if (preg_match('/^(.*) +AS +"?([^"]*)"?/i', $clause, $matches)) {
                     $query->selectField($matches[1], $matches[2]);
                 } else {
@@ -439,7 +451,7 @@ class PostgreSQLDatabase extends SS_Database
                 }
             }
 
-            $query->selectField("ts_rank(\"{$row['table_name']}\".\"{$row['column_name']}\", q)", 'Relevance');
+            $query->selectField("ts_rank(\"{$tableName}\".\"{$columnName}\", q)", 'Relevance');
             $query->setOrderBy(array());
 
             //Add this query to the collection
@@ -456,17 +468,18 @@ class PostgreSQLDatabase extends SS_Database
             $orderBy='';
         }
 
-        $fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
+        $fullQuery = "SELECT *, count(*) OVER() as _fullcount FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
 
         // Get records
         $records = $this->preparedQuery($fullQuery, $tableParameters);
-        $totalCount=0;
+        $totalCount = 0;
+        $objects = [];
         foreach ($records as $record) {
-            $objects[] = new $record['ClassName']($record);
-            $totalCount++;
+            $objects[] = Injector::inst()->createWithArgs($record['ClassName'], [$record]);
+            $totalCount = $record['_fullcount'];
         }
 
-        if (isset($objects)) {
+        if ($objects) {
             $results = new ArrayList($objects);
         } else {
             $results = new ArrayList();
