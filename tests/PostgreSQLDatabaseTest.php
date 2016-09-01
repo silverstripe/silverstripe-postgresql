@@ -1,7 +1,8 @@
 <?php
 
-use SilverStripe\ORM\DB;
+use SilverStripe\Dev\SapphireTest;
 use SilverStripe\ORM\DataObject;
+use SilverStripe\ORM\DB;
 use SilverStripe\PostgreSQL\PostgreSQLDatabase;
 
 /**

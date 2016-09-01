@@ -1,5 +1,7 @@
 <?php
 
+use SilverStripe\Dev\Install\DatabaseAdapterRegistry;
+
 // PDO Postgre database
 DatabaseAdapterRegistry::register(array(
     /** @skipUpgrade */

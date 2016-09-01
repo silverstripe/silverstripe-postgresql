@@ -2,9 +2,9 @@
 
 namespace SilverStripe\PostgreSQL;
 
+use SilverStripe\Dev\Deprecation;
 use SilverStripe\ORM\Connect\DBSchemaManager;
 use SilverStripe\ORM\DB;
-use Deprecation;
 
 /**
  * PostgreSQL schema manager

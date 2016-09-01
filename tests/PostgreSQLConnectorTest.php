@@ -1,12 +1,8 @@
 <?php
 
+use SilverStripe\Dev\SapphireTest;
 use SilverStripe\PostgreSQL\PostgreSQLConnector;
 
-/**
- * Description of PostgreSQLConnectorTest
- *
- * @author Damian
- */
 class PostgreSQLConnectorTest extends SapphireTest
 {
     public function testSubstitutesPlaceholders()

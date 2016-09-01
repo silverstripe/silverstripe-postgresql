@@ -2,10 +2,10 @@
 
 namespace SilverStripe\PostgreSQL;
 
-use DatabaseConfigurationHelper;
-use PDO;
+use SilverStripe\Dev\Install\DatabaseAdapterRegistry;
+use SilverStripe\Dev\Install\DatabaseConfigurationHelper;
 use Exception;
-use DatabaseAdapterRegistry;
+use PDO;
 
 /**
  * This is a helper class for the SS installer.

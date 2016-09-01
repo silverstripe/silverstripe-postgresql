@@ -2,15 +2,15 @@
 
 namespace SilverStripe\PostgreSQL;
 
-use Injector;
-use SilverStripe\Framework\Core\Configurable;
+use SilverStripe\Core\Config\Configurable;
+use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DB;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\ORM\Connect\SS_Database;
+use SilverStripe\ORM\PaginatedList;
 use ErrorException;
 use Exception;
-use PaginatedList;
 
 /**
  * PostgreSQL connector class.
@@ -396,7 +396,7 @@ class PostgreSQLDatabase extends SS_Database
 
         // Make column selection lists
         $pageClass = 'SilverStripe\\CMS\\Model\\SiteTree';
-        $fileClass = 'File';
+        $fileClass = 'SilverStripe\\Assets\\File';
         $select = array(
             $pageClass => array(
                 '"ClassName"',
