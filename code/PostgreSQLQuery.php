@@ -2,7 +2,7 @@
 
 namespace SilverStripe\PostgreSQL;
 
-use SilverStripe\ORM\Connect\SS_Query;
+use SilverStripe\ORM\Connect\Query;
 
 /**
  * A result-set from a PostgreSQL database.
@@ -10,7 +10,7 @@ use SilverStripe\ORM\Connect\SS_Query;
  * @package sapphire
  * @subpackage model
  */
-class PostgreSQLQuery extends SS_Query
+class PostgreSQLQuery extends Query
 {
     /**
      * The internal Postgres handle that points to the result set.
