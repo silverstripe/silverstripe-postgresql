@@ -1,7 +1,7 @@
 ---
 name: postgresqlconnectors
 ---
-Injector:
+SilverStripe\Core\Injector\Injector:
   PostgrePDODatabase:
     class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
     properties:
