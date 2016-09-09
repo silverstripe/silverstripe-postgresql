@@ -7,7 +7,7 @@ use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DB;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ArrayList;
-use SilverStripe\ORM\Connect\SS_Database;
+use SilverStripe\ORM\Connect\Database;
 use SilverStripe\ORM\PaginatedList;
 use ErrorException;
 use Exception;
@@ -18,7 +18,7 @@ use Exception;
  * @package sapphire
  * @subpackage model
  */
-class PostgreSQLDatabase extends SS_Database
+class PostgreSQLDatabase extends Database
 {
     use Configurable;
 
