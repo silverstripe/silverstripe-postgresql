@@ -20,6 +20,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
     /**
      * Create a connection of the appropriate type
      *
+     * @skipUpgrade
      * @param array $databaseConfig
      * @param string $error Error message passed by value
      * @return mixed|null Either the connection object, or null if error
@@ -31,7 +32,6 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
         $password = empty($databaseConfig['password']) ? '' : $databaseConfig['password'];
         $server = $databaseConfig['server'];
 
-        /** @skipUpgrade */
         try {
             switch ($databaseConfig['type']) {
                 case 'PostgreSQLDatabase':
@@ -45,7 +45,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
                     $conn = @new PDO('postgresql:host='.$server.';dbname=postgres;port=5432', $username, $password);
                     break;
                 default:
-                    $error = 'Invalid connection type';
+                    $error = 'Invalid connection type: ' . $databaseConfig['type'];
                     return null;
             }
         } catch (Exception $ex) {
