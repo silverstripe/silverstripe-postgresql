@@ -429,7 +429,7 @@ class PostgreSQLDatabase extends Database
             $tableName = $searchableColumn['table_name'];
             $columnName = $searchableColumn['column_name'];
             $className = DataObject::getSchema()->tableClass($tableName);
-            if (DataObject::singleton($className)->db('ShowInSearch')) {
+            if (DataObject::getSchema()->fieldSpec($className, 'ShowInSearch')) {
                 $conditions[] = array('"ShowInSearch"' => 1);
             }
 
