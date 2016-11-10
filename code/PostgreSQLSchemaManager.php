@@ -1112,7 +1112,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     public function bigint($values)
     {
-        return "bigint default" . (int)$values['default'];
+        return "bigint default " . (int)$values['default'];
     }
 
     /**
