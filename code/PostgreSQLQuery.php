@@ -37,7 +37,7 @@ class PostgreSQLQuery extends Query
     public function seek($row)
     {
         pg_result_seek($this->handle, $row);
-        return pg_fetch_row($this->handle);
+        return pg_fetch_assoc($this->handle);
     }
 
     public function numRecords()
