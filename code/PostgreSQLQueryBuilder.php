@@ -15,7 +15,7 @@ class PostgreSQLQueryBuilder extends DBQueryBuilder {
 		// Ensure limit is given
 		$limit = $query->getLimit();
 		if(empty($limit)) return '';
-		
+
 		// For literal values return this as the limit SQL
 		if( ! is_array($limit)) {
 			return "{$nl}LIMIT $limit";
@@ -31,12 +31,25 @@ class PostgreSQLQueryBuilder extends DBQueryBuilder {
 		if($limit['limit'] === null) {
 			$limit['limit'] = 'ALL';
 		}
-		
+
 		$clause = "{$nl}LIMIT {$limit['limit']}";
 		if(isset($limit['start']) && is_numeric($limit['start']) && $limit['start'] !== 0) {
 			$clause .= " OFFSET {$limit['start']}";
 		}
 		return $clause;
 	}
+
+    /**
+     * Adds a specific PostgreSQL command that returns the affected rows when the 'Update' query is run
+     *
+     * @param SQLUpdate $query
+     * @param array $parameters
+     * @return string
+     */
+    protected function buildUpdateQuery(SQLUpdate $query, array &$parameters) {
+        $sql = parent::buildUpdateQuery($query, $parameters);
+        $sql .= ' RETURNING *';
+        return $sql;
+    }
 
 }
