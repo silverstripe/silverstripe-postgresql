@@ -333,7 +333,6 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         $triggers = false;
         if ($alteredIndexes) {
             foreach ($alteredIndexes as $indexName=>$indexSpec) {
-                $indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
                 $indexNamePG = $this->buildPostgresIndexName($table, $indexName);
 
                 if ($indexSpec['type']=='fulltext') {
@@ -368,7 +367,6 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         //Add the new indexes:
         if ($newIndexes) {
             foreach ($newIndexes as $indexName => $indexSpec) {
-                $indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
                 $indexNamePG = $this->buildPostgresIndexName($table, $indexName);
             //If we have a fulltext search request, then we need to create a special column
             //for GiST searches
@@ -730,9 +728,6 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         // Determine index name
         $tableCol = $this->buildPostgresIndexName($tableName, $indexName);
 
-        // Consolidate/Cleanup spec into array format
-        $indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
-
         //Misc options first:
         $fillfactor = $where = '';
         if (isset($indexSpec['fillfactor'])) {
@@ -753,22 +748,22 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 break;
 
             case 'unique':
-                $spec = "create unique index \"$tableCol\" ON \"$tableName\" (" . $indexSpec['value'] . ") $fillfactor $where";
+                $spec = "create unique index \"$tableCol\" ON \"$tableName\" (" . $this->implodeColumnList($indexSpec['columns']) . ") $fillfactor $where";
                 break;
 
             case 'btree':
-                $spec = "create index \"$tableCol\" ON \"$tableName\" USING btree (" . $indexSpec['value'] . ") $fillfactor $where";
+                $spec = "create index \"$tableCol\" ON \"$tableName\" USING btree (" . $this->implodeColumnList($indexSpec['columns']) . ") $fillfactor $where";
                 break;
 
             case 'hash':
                 //NOTE: this is not a recommended index type
-                $spec = "create index \"$tableCol\" ON \"$tableName\" USING hash (" . $indexSpec['value'] . ") $fillfactor $where";
+                $spec = "create index \"$tableCol\" ON \"$tableName\" USING hash (" . $this->implodeColumnList($indexSpec['columns']) . ") $fillfactor $where";
                 break;
 
             case 'index':
             //'index' is the same as default, just a normal index with the default type decided by the database.
             default:
-                $spec = "create index \"$tableCol\" ON \"$tableName\" (" . $indexSpec['value'] . ") $fillfactor $where";
+                $spec = "create index \"$tableCol\" ON \"$tableName\" (" . $this->implodeColumnList($indexSpec['columns']) . ") $fillfactor $where";
         }
         return trim($spec) . ';';
     }
@@ -876,11 +871,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 $columnString = $this->quoteColumnSpecString($index['indexdef']);
             }
 
-            $indexList[$indexName] = $this->parseIndexSpec($index, array(
+            $indexList[$indexName] = array(
                 'name' => $indexName, // Not the correct name in the PHP, as this will be a mangled postgres-unique code
-                'value' => $columnString,
-                'type' => $type
-            ));
+                'columns' => $this->explodeColumnString($columnString),
+                'type' => $type ?: 'index',
+            );
         }
 
         return $indexList;
@@ -1190,7 +1185,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     protected function fulltext($this_index, $tableName, $name)
     {
         //For full text search, we need to create a column for the index
-        $columns = $this->quoteColumnSpecString($this_index['value']);
+        $columns = $this->implodeColumnList($this_index['columns']);
 
         $fulltexts = "\"ts_$name\" tsvector";
         $triggerName = $this->buildPostgresTriggerName($tableName, $name);
