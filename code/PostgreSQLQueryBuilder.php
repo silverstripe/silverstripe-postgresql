@@ -2,12 +2,20 @@
 
 namespace SilverStripe\PostgreSQL;
 
+use SilverStripe\ORM\Queries\SQLConditionalExpression;
+use SilverStripe\ORM\Queries\SQLExpression;
 use SilverStripe\ORM\Queries\SQLSelect;
 use SilverStripe\ORM\Connect\DBQueryBuilder;
 use InvalidArgumentException;
 
 class PostgreSQLQueryBuilder extends DBQueryBuilder
 {
+    /**
+     * Max table length.
+     * Aliases longer than this will be re-written
+     */
+    const MAX_TABLE = 63;
+
     /**
      * Return the LIMIT clause ready for inserting into a query.
      *
@@ -46,5 +54,54 @@ class PostgreSQLQueryBuilder extends DBQueryBuilder
             $clause .= " OFFSET {$limit['start']}";
         }
         return $clause;
+    }
+
+    public function buildSQL(SQLExpression $query, &$parameters)
+    {
+        $sql = parent::buildSQL($query, $parameters);
+        return $this->rewriteLongIdentifiers($query, $sql);
+    }
+
+    /**
+     * Find and generate table aliases necessary in the given query
+     *
+     * @param SQLConditionalExpression $query
+     * @return array List of replacements
+     */
+    protected function findRewrites(SQLConditionalExpression $query)
+    {
+        $rewrites = [];
+        foreach ($query->getFrom() as $alias => $from) {
+            $table = is_array($from) ? $from['table'] : $from;
+            if ($alias === $table || "\"{$alias}\"" === $table) {
+                continue;
+            }
+            // Don't complain about aliases shorter than max length
+            if (strlen($alias) <= self::MAX_TABLE) {
+                continue;
+            }
+            $replacement = substr(sha1($alias), 0, 7) . '_' . substr($alias, 8 - self::MAX_TABLE);
+            $rewrites["\"{$alias}\""] = "\"{$replacement}\"";
+        }
+        return $rewrites;
+    }
+
+    /**
+     * Rewrite all ` AS "Identifier"` with strlen(Identifier) > 63
+     *
+     * @param SQLExpression $query
+     * @param string $sql
+     * @return string
+     */
+    protected function rewriteLongIdentifiers(SQLExpression $query, $sql)
+    {
+        // Check if this query has aliases
+        if ($query instanceof SQLConditionalExpression) {
+            $rewrites = $this->findRewrites($query);
+            if ($rewrites) {
+                return str_replace(array_keys($rewrites), array_values($rewrites), $sql);
+            }
+        }
+        return $sql;
     }
 }
