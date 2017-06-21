@@ -6,15 +6,25 @@ php:
   - 5.6
 
 env:
-  matrix:
-    - DB=POSTGRESQL CORE_RELEASE=master
+  global:
+    - DB="POSTGRESQL"
+    - CORE_RELEASE="master"
 
 before_script:
- - composer self-update || true
- - phpenv rehash
- - git clone git://github.com/silverstripe-labs/silverstripe-travis-support.git ~/travis-support
- - php ~/travis-support/travis_setup.php --source `pwd` --target ~/builds/ss
- - cd ~/builds/ss
+# Init PHP
+  - printf "\n" | pecl install imagick
+  - phpenv rehash
+  - phpenv config-rm xdebug.ini
+  - echo 'memory_limit = 2048M' >> ~/.phpenv/versions/$(phpenv version-name)/etc/conf.d/travis.ini
+
+# Temporarily update to 1.5.x-dev of composer
+  - composer self-update --snapshot
+
+# Install composer dependencies
+  - composer install --prefer-dist
+  - composer require --prefer-dist --no-update symfony/config:^3.2 silverstripe/framework:4.0.x-dev silverstripe/siteconfig:4.0.x-dev silverstripe/config:1.0.x-dev silverstripe/admin:1.0.x-dev silverstripe/assets:1.0.x-dev silverstripe/versioned:1.0.x-dev
+  - composer update
 
 script:
- - vendor/bin/phpunit framework/tests
+ - vendor/bin/phpunit ./tests
+ - vendor/bin/phpunit ./framework/tests
