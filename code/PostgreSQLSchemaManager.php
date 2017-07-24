@@ -488,7 +488,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint) {
-				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+				$alterCol .= ",\nDROP CONSTRAINT IF EXISTS \"{$tableName}_{$colName}_check\"";
 			}
 
 			//Now create the constraint (if we've asked for one)
@@ -1393,7 +1393,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 					array("{$partition_name}_pkey")
 				);
 				if($existing_constraint){
-					$this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+					$this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT IF EXISTS \"{$partition_name}_pkey\";");
 				}
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}
