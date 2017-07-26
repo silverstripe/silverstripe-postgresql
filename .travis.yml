@@ -9,7 +9,7 @@ php:
 
 env:
   global:
-    - DB="POSTGRESQL"
+    - DB="PGSQL"
     - CORE_RELEASE="4"
 
 before_script:
@@ -24,7 +24,7 @@ before_script:
 
 # Install composer dependencies
   - composer install --prefer-dist
-  - composer require --prefer-dist --no-update symfony/config:^3.2 silverstripe/framework:4.0.x-dev silverstripe/siteconfig:4.0.x-dev silverstripe/config:1.0.x-dev silverstripe/admin:1.0.x-dev silverstripe/assets:1.0.x-dev silverstripe/versioned:1.0.x-dev
+  - composer require --prefer-dist --no-update symfony/config:^3.2 silverstripe/framework:4.0.x-dev silverstripe/cms:4.0.x-dev silverstripe/siteconfig:4.0.x-dev silverstripe/config:1.0.x-dev silverstripe/admin:1.0.x-dev silverstripe/assets:1.0.x-dev silverstripe/versioned:1.0.x-dev
   - composer update
 
 script:

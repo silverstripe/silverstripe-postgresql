@@ -11,6 +11,8 @@ use SilverStripe\PostgreSQL\PostgreSQLDatabase;
  */
 class PostgreSQLDatabaseTest extends SapphireTest
 {
+    protected $usesDatabase = true;
+
     public function testReadOnlyTransaction()
     {
         if (
