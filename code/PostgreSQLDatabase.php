@@ -171,7 +171,7 @@ class PostgreSQLDatabase extends SS_Database {
 		} elseif(pg_connection_status($this->dbConn) != PGSQL_CONNECTION_OK) {
 			throw new ErrorException(pg_last_error($this->dbConn));
 		}
-			
+
 		//By virtue of getting here, the connection is active:
 		$this->active=true;
 		$this->database = $dbName;
@@ -523,7 +523,7 @@ class PostgreSQLDatabase extends SS_Database {
 	/**
 	 * Builds the internal Postgres index name given the silverstripe table and index name
 	 * @param string $tableName
-	 * @param string $indexName 
+	 * @param string $indexName
 	 * @param string $prefix The optional prefix for the index. Defaults to "ix" for indexes.
 	 * @return string The postgres name of the index
 	 */
@@ -586,7 +586,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$drop_triggers=false;
 		$triggers=false;
 		if($alteredIndexes) foreach($alteredIndexes as $indexName=>$indexSpec) {
-			
+
 			$indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
 			$indexNamePG = $this->buildPostgresIndexName($tableName, $indexName);
 
@@ -609,7 +609,7 @@ class PostgreSQLDatabase extends SS_Database {
 				$fulltexts .= "ALTER TABLE \"{$tableName}\" ADD COLUMN {$ts_details['fulltexts']};";
 				$triggers .= $ts_details['triggers'];
 			}
-			
+
 			// Create index action (including fulltext)
 			$alterIndexList[] = "DROP INDEX IF EXISTS \"$indexNamePG\";";
 			$createIndex = $this->getIndexSqlDefinition($tableName, $indexName, $indexSpec);
@@ -618,7 +618,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 		//Add the new indexes:
 		if($newIndexes) foreach($newIndexes as $indexName => $indexSpec){
-			
+
 			$indexSpec = $this->parseIndexSpec($indexName, $indexSpec);
 			$indexNamePG = $this->buildPostgresIndexName($tableName, $indexName);
 			//If we have a fulltext search request, then we need to create a special column
@@ -631,7 +631,7 @@ class PostgreSQLDatabase extends SS_Database {
 					$triggers.=$ts_details['triggers'];
 				}
 			}
-			
+
 			//Check that this index doesn't already exist:
  			$indexes=$this->indexList($tableName);
  			if(isset($indexes[$indexName])){
@@ -743,7 +743,8 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 
 			// SET check constraint (The constraint HAS to be dropped)
-			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+            $constraint_name = "{$tableName}_{$colName}_check";
+			$existing_constraint = $this->constraintExists($constraint_name);
 			if(isset($matches[4])) {
 				//Take this new constraint and see what's outstanding from the target table:
 				$constraint_bits=explode('(', $matches[4]);
@@ -767,11 +768,11 @@ class PostgreSQLDatabase extends SS_Database {
 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint)
-				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+				$alterCol .= ",\nDROP CONSTRAINT \"{$constraint_name}\"";
 
 			//Now create the constraint (if we've asked for one)
 			if(!empty($matches[4]))
-				$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+				$alterCol .= ",\nADD CONSTRAINT \"{$constraint_name}\" $matches[4]";
 		}
 
 		return isset($alterCol) ? $alterCol : '';
@@ -925,7 +926,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//}
 
 		//return self::$cached_fieldlists[$table];
-		
+
 		return $output;
 	}
 
@@ -990,9 +991,9 @@ class PostgreSQLDatabase extends SS_Database {
 		}
 		return $indexSpec;
 	}
-	
+
 	/**
-	 * Splits a spec string safely, considering quoted columns, whitespace, 
+	 * Splits a spec string safely, considering quoted columns, whitespace,
 	 * and cleaning brackets
 	 * @param string $spec The input index specification
 	 * @return array List of columns in the spec
@@ -1001,12 +1002,12 @@ class PostgreSQLDatabase extends SS_Database {
 		// Remove any leading/trailing brackets and outlying modifiers
 		// E.g. 'unique (Title, "QuotedColumn");' => 'Title, "QuotedColumn"'
 		$containedSpec = preg_replace('/(.*\(\s*)|(\s*\).*)/', '', $spec);
-		
+
 		// Split potentially quoted modifiers
 		// E.g. 'Title, "QuotedColumn"' => array('Title', 'QuotedColumn')
 		return preg_split('/"?\s*,\s*"?/', trim($containedSpec, '(") '));
 	}
-	
+
 	/**
 	 * Builds a properly quoted column list from an array
 	 * @param array $columns List of columns to implode
@@ -1016,7 +1017,7 @@ class PostgreSQLDatabase extends SS_Database {
 		if(empty($columns)) return '';
 		return '"' . implode('","', $columns) . '"';
 	}
-	
+
 	/**
 	 * Given an index specification in the form of a string ensure that each
 	 * column name is property quoted, stripping brackets and modifiers.
@@ -1028,11 +1029,11 @@ class PostgreSQLDatabase extends SS_Database {
 		$bits = $this->explodeColumnString($spec);
 		return $this->implodeColumnList($bits);
 	}
-	
+
 	/**
 	 * Given an index spec determines the index type
 	 * @param type $spec
-	 * @return string 
+	 * @return string
 	 */
 	function determineIndexType($spec) {
 		// check array spec
@@ -1044,7 +1045,7 @@ class PostgreSQLDatabase extends SS_Database {
 			return 'index';
 		}
 	}
-	
+
 	/**
 	 * Converts an array or string index spec into a universally useful array
 	 * @see convertIndexSpec() for approximate inverse
@@ -1052,13 +1053,13 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @return array The resulting spec array with the required fields name, type, and value
 	 */
 	function parseIndexSpec($name, $spec){
-		
+
 		// Do minimal cleanup on any already parsed spec
 		if(is_array($spec)) {
 			$spec['value'] = $this->quoteColumnSpecString($spec['value']);
 			return $spec;
 		}
-		
+
 		// Nicely formatted spec!
 		return array(
 			'name' => $name,
@@ -1075,7 +1076,7 @@ class PostgreSQLDatabase extends SS_Database {
 		//NOTE: it is possible for *_renamed tables to have indexes whose names are not updates
 		//Therefore, we now check for the existance of indexes before we create them.
 		//This is techically a bug, since new tables will not be indexed.
-		
+
 		// If requesting the definition rather than the DDL
 		if($asDbValue) {
 			$indexName=trim($indexName, '()');
@@ -1099,7 +1100,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 		//create a type-specific index
 		// NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made
-		// NOTE: Quote the index name to preserve case sensitivity 
+		// NOTE: Quote the index name to preserve case sensitivity
 		switch ($indexSpec['type']) {
 			case 'fulltext':
 				// @see fulltext() for the definition of the trigger that ts_$IndexName uses for fulltext searching
@@ -1138,21 +1139,21 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @param string $indexSpec The specification of the index, see Database::requireIndex() for more details.
 	 */
 	public function alterIndex($tableName, $indexName, $indexSpec) {
-	    $indexSpec = trim($indexSpec);
-	    if($indexSpec[0] != '(') {
-	    	list($indexType, $indexFields) = explode(' ',$indexSpec,2);
-	    } else {
-	    	$indexFields = $indexSpec;
-	    }
+		$indexSpec = trim($indexSpec);
+		if($indexSpec[0] != '(') {
+			list($indexType, $indexFields) = explode(' ',$indexSpec,2);
+		} else {
+			$indexFields = $indexSpec;
+		}
 
-	    if(!$indexType) {
-	    	$indexType = "index";
-	    }
+		if(!$indexType) {
+			$indexType = "index";
+		}
 
 		$this->query("DROP INDEX \"$indexName\"");
 		$this->query("ALTER TABLE \"$tableName\" ADD $indexType \"$indexName\" $indexFields");
 	}
-	
+
 	/**
 	 * Given a trigger name attempt to determine the columns upon which it acts
 	 * @param string $triggerName Postgres trigger name
@@ -1168,7 +1169,7 @@ class PostgreSQLDatabase extends SS_Database {
 		if(strpos($trigger['tgargs'],'\000') !== false) {
 			$argList = explode('\000', $trigger['tgargs']);
 			array_pop($argList);
-			
+
 		// Option 2: hex-encoded (not sure why this happens, depends on PGSQL config)
 		} else {
 			$bytes = str_split($trigger['tgargs'],2);
@@ -1183,7 +1184,7 @@ class PostgreSQLDatabase extends SS_Database {
 				}
 			}
 		}
-			
+
 		// Drop first two arguments (trigger name and config name) and implode into nice list
 		return array_slice($argList, 2);
 	}
@@ -1203,7 +1204,7 @@ class PostgreSQLDatabase extends SS_Database {
   		foreach($indexes as $index) {
   			// Key for the indexList array.  Differs from other DB implementations, which is why
   			// requireIndex() needed to be overridden
-  			$indexName = $index['indexname']; 
+  			$indexName = $index['indexname'];
 
   			//We don't actually need the entire created command, just a few bits:
   			$prefix='';
@@ -1247,25 +1248,25 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Generate the given index in the database, modifying whatever already exists as necessary.
-	 * 
+	 *
 	 * The keys of the array are the names of the index.
 	 * The values of the array can be one of:
 	 *  - true: Create a single column index on the field named the same as the index.
 	 *  - array('type' => 'index|unique|fulltext', 'value' => 'FieldA, FieldB'): This gives you full
 	 *    control over the index.
-	 * 
+	 *
 	 * @param string $table The table name.
 	 * @param string $index The index name.
 	 * @param string|boolean $spec The specification of the index. See requireTable() for more information.
 	 */
 	function requireIndex($table, $index, $spec) {
 		$newTable = false;
-		
+
 		//DB Abstraction: remove this ===true option as a possibility?
 		if($spec === true) {
 			$spec = "(\"$index\")";
 		}
-		
+
 		//Indexes specified as arrays cannot be checked with this line: (it flattens out the array)
 		if(!is_array($spec)) {
 			$spec = preg_replace('/\s*,\s*/', ',', $spec);
@@ -1276,13 +1277,13 @@ class PostgreSQLDatabase extends SS_Database {
 		if(!$newTable && !isset($this->indexList[$table])) {
 			$this->indexList[$table] = $this->indexList($table);
 		}
-						
+
 		//Fix up the index for database purposes
 		$index=DB::getConn()->getDbSqlDefinition($table, $index, null, true);
-		
+
 		//Fix the key for database purposes
 		$index_alt = $this->buildPostgresIndexName($table, $index);
-				
+
 		if(!$newTable) {
 			if(isset($this->indexList[$table][$index_alt])) {
 				if(is_array($this->indexList[$table][$index_alt])) {
@@ -1292,14 +1293,14 @@ class PostgreSQLDatabase extends SS_Database {
 				}
 			}
 		}
-		
+
 		if($newTable || !isset($this->indexList[$table][$index_alt])) {
 			$this->transCreateIndex($table, $index, $spec);
 			$this->alterationMessage("Index $table.$index: created as " . DB::getConn()->convertIndexSpec($spec),"created");
 		} else if($array_spec != DB::getConn()->convertIndexSpec($spec)) {
 			$this->transAlterIndex($table, $index, $spec);
 			$spec_msg=DB::getConn()->convertIndexSpec($spec);
-			$this->alterationMessage("Index $table.$index: changed to $spec_msg <i style=\"color: #AAA\">(from {$array_spec})</i>","changed");			
+			$this->alterationMessage("Index $table.$index: changed to $spec_msg <i style=\"color: #AAA\">(from {$array_spec})</i>","changed");
 		}
 	}
 
@@ -2024,9 +2025,10 @@ class PostgreSQLDatabase extends SS_Database {
 				DB::query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
 			} else {
 				//Drop the constraint, we will recreate in in the next line
-				$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$partition_name}_pkey';");
+				$constraint_name = "{$partition_name}_pkey";
+				$existing_constraint = $this->constraintExists($constraint_name);
 				if($existing_constraint){
-					DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+					DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$constraint_name}\";");
 				}
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}
@@ -2096,7 +2098,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Generate a WHERE clause for text matching.
-	 * 
+	 *
 	 * @param String $field Quoted field name
 	 * @param String $value Escaped search. Can include percentage wildcards.
 	 * @param boolean $exact Exact matches or wildcard support.
@@ -2113,7 +2115,7 @@ class PostgreSQLDatabase extends SS_Database {
 			if($negate) $comp = 'NOT ' . $comp;
 			$field.='::text';
 		}
-		
+
 		return sprintf("%s %s '%s'", $field, $comp, $value);
 	}
 
