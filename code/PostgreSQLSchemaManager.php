@@ -464,7 +464,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 			}
 
 			// SET check constraint (The constraint HAS to be dropped)
-			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+			$constraint_name = "{$tableName}_{$colName}_check";
+			$existing_constraint = $this->constraintExists($constraint_name);
 			if(isset($matches[4])) {
 				//Take this new constraint and see what's outstanding from the target table:
 				$constraint_bits=explode('(', $matches[4]);
@@ -488,12 +489,12 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint) {
-				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+				$alterCol .= ",\nDROP CONSTRAINT \"{$constraint_name}\"";
 			}
 
 			//Now create the constraint (if we've asked for one)
 			if(!empty($matches[4])) {
-				$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+				$alterCol .= ",\nADD CONSTRAINT \"{$constraint_name}\" $matches[4]";
 			}
 		}
 
@@ -903,10 +904,13 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 					WHERE c.relname = ? AND pg_catalog.pg_table_is_visible(c.oid) AND n.nspname = ?
 				);";
 
-		$result = $this->preparedQuery($query, $tableName, $this->database->currentSchema());
+		$result = $this->preparedQuery(
+			$query,
+			array($tableName, $this->database->currentSchema())
+		);
 
 		$table = array();
-		while($row = pg_fetch_assoc($result)) {
+		foreach ($result as $row) {
 			$table[] = array(
 				'Column' => $row['Column'],
 				'DataType' => $row['DataType']
@@ -1388,12 +1392,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 				$this->query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
 			} else {
 				//Drop the constraint, we will recreate in in the next line
-				$existing_constraint = $this->preparedQuery(
-					"SELECT conname FROM pg_constraint WHERE conname = ?;",
-					array("{$partition_name}_pkey")
-				);
+				$constraint_name = "{$partition_name}_pkey";
+				$existing_constraint = $this->constraintExists($constraint_name);
 				if($existing_constraint){
-					$this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+					$this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$constraint_name}\";");
 				}
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}

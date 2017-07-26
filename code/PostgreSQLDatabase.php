@@ -2,7 +2,7 @@
 
 /**
  * PostgreSQL connector class.
- * 
+ *
  * @package sapphire
  * @subpackage model
  */
@@ -10,14 +10,14 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Database schema manager object
-	 * 
+	 *
 	 * @var PostgreSQLSchemaManager
 	 */
 	protected $schemaManager;
 
 	/**
 	 * The currently selected database schema name.
-	 * 
+	 *
 	 * @var string
 	 */
 	protected $schema;
@@ -30,7 +30,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Full text cluster method. (e.g. GIN or GiST)
-	 * 
+	 *
 	 * @return string
 	 */
 	public static function default_fts_cluster_method() {
@@ -39,7 +39,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Full text search method.
-	 * 
+	 *
 	 * @return string
 	 */
 	public static function default_fts_search_method() {
@@ -53,7 +53,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Some locked down systems prevent access to the 'postgres' table in
 	 * which case you need to set this to false.
 	 *
-	 * If allow_query_master_postgres is false, and model_schema_as_database is also false, 
+	 * If allow_query_master_postgres is false, and model_schema_as_database is also false,
 	 * then attempts to create or check databases beyond the initial connection will
 	 * result in a runtime error.
 	 */
@@ -67,7 +67,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * instead of using databases. This may be useful if the database user does not
 	 * have cross-database permissions, and in cases where multiple databases are used
 	 * (such as in running test cases).
-	 * 
+	 *
 	 * If this is true then the database will only be set during the initial connection,
 	 * and attempts to change to this database will use the 'public' schema instead
 	 */
@@ -88,7 +88,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * The database name specified at initial connection
-	 * 
+	 *
 	 * @var string
 	 */
 	protected $databaseOriginal = '';
@@ -149,7 +149,7 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 		}
 
-		// Connect to the actual database we're requesting
+			// Connect to the actual database  we 're requesting
 		$this->connectDefault();
 
 		// Set up the schema if required
@@ -175,7 +175,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Sets the system timezone for the database connection
-	 * 
+	 *
 	 * @param string $timezone
 	 */
 	public function selectTimezone($timezone) {
@@ -197,7 +197,7 @@ class PostgreSQLDatabase extends SS_Database {
 
 	/**
 	 * Returns the name of the current schema in use
-	 * 
+	 *
 	 * @return string Name of current schema
 	 */
 	public function currentSchema() {
@@ -207,7 +207,7 @@ class PostgreSQLDatabase extends SS_Database {
 	/**
 	 * Utility method to manually set the schema to an alternative
 	 * Check existance & sets search path to the supplied schema name
-	 * 
+	 *
 	 * @param string $name Name of the schema
 	 * @param boolean $create Flag indicating whether the schema should be created
 	 * if it doesn't exist. If $create is false and the schema doesn't exist
@@ -240,7 +240,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * the search path is provided as an advanced PostgreSQL feature for raw
 	 * SQL queries. Sapphire cannot search for datamodel tables in alternate
 	 * schemas, so be wary of using alternate schemas within the ORM environment.
-	 * 
+	 *
 	 * @param string $arg1 First schema to use
 	 * @param string $arg2 Second schema to use
 	 * @param string $argN Nth schema to use
@@ -354,12 +354,14 @@ class PostgreSQLDatabase extends SS_Database {
 
 		$fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
 
+		// Get the total items in this search
+		$totalItemsQuery = "SELECT COUNT(*) AS totalitems FROM (" . implode(" UNION ", $tables) . ") AS q1";
+		$totalCount = DB::query($totalItemsQuery);
+
 		// Get records
 		$records = $this->preparedQuery($fullQuery, $tableParameters);
-		$totalCount=0;
 		foreach($records as $record){
 			$objects[] = new $record['ClassName']($record);
-			$totalCount++;
 		}
 
 		if(isset($objects)) $results = new ArrayList($objects);
@@ -368,7 +370,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$list->setLimitItems(false);
 		$list->setPageStart($start);
 		$list->setPageLength($pageLength);
-		$list->setTotalItems($totalCount);
+		$list->setTotalItems($totalCount->value());
 		return $list;
 	}
 
@@ -414,6 +416,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$this->query('COMMIT;');
 	}
 
+
 	public function comparisonClause($field, $value, $exact = false, $negate = false, $caseSensitive = null, $parameterised = false) {
 		if($exact && $caseSensitive === null) {
 			$comp = ($negate) ? '!=' : '=';
@@ -422,12 +425,10 @@ class PostgreSQLDatabase extends SS_Database {
 			if($negate) $comp = 'NOT ' . $comp;
 			$field.='::text';
 		}
-
 		if($parameterised) {
 			return sprintf("%s %s ?", $field, $comp);
 		} else {
-			return sprintf("%s %s '%s'", $field, $comp, $value);
-		}
+		return sprintf("%s %s '%s'", $field, $comp, $value);}
 	}
 
 	/**
@@ -536,7 +537,7 @@ class PostgreSQLDatabase extends SS_Database {
 	 * Determines the name of the current database to be reported externally
 	 * by substituting the schema name for the database name.
 	 * Should only be used when model_schema_as_database is true
-	 * 
+	 *
 	 * @param string $schema Name of the schema
 	 * @return string Name of the database to report
 	 */
@@ -550,7 +551,7 @@ class PostgreSQLDatabase extends SS_Database {
 	/**
 	 * Translates a requested database name to a schema name to substitute internally.
 	 * Should only be used when model_schema_as_database is true
-	 * 
+	 *
 	 * @param string $database Name of the database
 	 * @return string Name of the schema to use for this database internally
 	 */
