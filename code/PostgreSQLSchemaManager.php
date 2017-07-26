@@ -464,7 +464,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 			}
 
 			// SET check constraint (The constraint HAS to be dropped)
-			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+			$constraint_name = "{$tableName}_{$colName}_check";
+			$existing_constraint = $this->constraintExists($constraint_name, false);
 			if(isset($matches[4])) {
 				//Take this new constraint and see what's outstanding from the target table:
 				$constraint_bits=explode('(', $matches[4]);
@@ -488,12 +489,12 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint) {
-				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+				$alterCol .= ",\nDROP CONSTRAINT \"{$constraint_name}\"";
 			}
 
 			//Now create the constraint (if we've asked for one)
 			if(!empty($matches[4])) {
-				$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+				$alterCol .= ",\nADD CONSTRAINT \"{$constraint_name}\" $matches[4]";
 			}
 		}
 
@@ -873,15 +874,25 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	 * query all over again.
 	 *
 	 * @param string $constraint
+	 * @param bool $cache Flag whether a cached version should be used. Set to false to cache bust.
+	 * @return false|array Either false, if the constraint doesn't exist, or an array
+	 * with the keys conname and pg_get_constraintdef
 	 */
-	protected function constraintExists($constraint){
-		if(!isset(self::$cached_constraints[$constraint])){
-			$exists = $this->preparedQuery("
+	protected function constraintExists($constraint, $cache = true){
+		if(!$cache || !isset(self::$cached_constraints[$constraint])){
+			$value = $this->preparedQuery("
 				SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true)
-				FROM pg_catalog.pg_constraint r WHERE r.contype = 'c' AND conname = ? ORDER BY 1;",
-				array($constraint)
+				FROM pg_catalog.pg_constraint r
+				INNER JOIN pg_catalog.pg_namespace n
+				  ON r.connamespace = n.oid
+				WHERE r.contype = 'c' AND conname = ? AND n.nspname = ?
+				ORDER BY 1;",
+				array($constraint, $this->database->currentSchema())
 			)->first();
-			self::$cached_constraints[$constraint]=$exists;
+			if (!$cache) {
+				return $value;
+			}
+			self::$cached_constraints[$constraint] = $value;
 		}
 
 		return self::$cached_constraints[$constraint];
@@ -903,10 +914,13 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 					WHERE c.relname = ? AND pg_catalog.pg_table_is_visible(c.oid) AND n.nspname = ?
 				);";
 
-		$result = $this->preparedQuery($query, $tableName, $this->database->currentSchema());
+		$result = $this->preparedQuery(
+			$query,
+			array($tableName, $this->database->currentSchema())
+		);
 
 		$table = array();
-		while($row = pg_fetch_assoc($result)) {
+		foreach ($result as $row) {
 			$table[] = array(
 				'Column' => $row['Column'],
 				'DataType' => $row['DataType']
@@ -1388,12 +1402,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 				$this->query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
 			} else {
 				//Drop the constraint, we will recreate in in the next line
-				$existing_constraint = $this->preparedQuery(
-					"SELECT conname FROM pg_constraint WHERE conname = ?;",
-					array("{$partition_name}_pkey")
-				);
+				$constraint_name = "{$partition_name}_pkey";
+				$existing_constraint = $this->constraintExists($constraint_name, false);
 				if($existing_constraint){
-					$this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+					$this->query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$constraint_name}\";");
 				}
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}
