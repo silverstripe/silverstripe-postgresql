@@ -1,4 +1,8 @@
-language: php 
+language: php
+
+dist: precise
+
+sudo: false
 
 php:
   - 5.3
