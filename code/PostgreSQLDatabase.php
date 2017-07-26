@@ -682,7 +682,8 @@ class PostgreSQLDatabase extends SS_Database {
 			}
 
 			// SET check constraint (The constraint HAS to be dropped)
-			$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$tableName}_{$colName}_check';")->value();
+            $constraint_name = "{$tableName}_{$colName}_check";
+			$existing_constraint = $this->constraintExists($constraint_name);
 			if(isset($matches[4])) {
 				//Take this new constraint and see what's outstanding from the target table:
 				$constraint_bits=explode('(', $matches[4]);
@@ -704,11 +705,11 @@ class PostgreSQLDatabase extends SS_Database {
 
 			//First, delete any existing constraint on this column, even if it's no longer an enum
 			if($existing_constraint)
-				$alterCol .= ",\nDROP CONSTRAINT \"{$tableName}_{$colName}_check\"";
+				$alterCol .= ",\nDROP CONSTRAINT \"{$constraint_name}\"";
 
 			//Now create the constraint (if we've asked for one)
 			if(!empty($matches[4]))
-				$alterCol .= ",\nADD CONSTRAINT \"{$tableName}_{$colName}_check\" $matches[4]";
+				$alterCol .= ",\nADD CONSTRAINT \"{$constraint_name}\" $matches[4]";
 		}
 
 		return isset($alterCol) ? $alterCol : '';
@@ -1031,16 +1032,16 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @param string $indexSpec The specification of the index, see Database::requireIndex() for more details.
 	 */
 	public function alterIndex($tableName, $indexName, $indexSpec) {
-	    $indexSpec = trim($indexSpec);
-	    if($indexSpec[0] != '(') {
-	    	list($indexType, $indexFields) = explode(' ',$indexSpec,2);
-	    } else {
-	    	$indexFields = $indexSpec;
-	    }
+		$indexSpec = trim($indexSpec);
+		if($indexSpec[0] != '(') {
+			list($indexType, $indexFields) = explode(' ',$indexSpec,2);
+		} else {
+			$indexFields = $indexSpec;
+		}
 
-	    if(!$indexType) {
-	    	$indexType = "index";
-	    }
+		if(!$indexType) {
+			$indexType = "index";
+		}
 
 		$this->query("DROP INDEX $indexName");
 		$this->query("ALTER TABLE \"$tableName\" ADD $indexType \"$indexName\" $indexFields");
@@ -1865,9 +1866,10 @@ class PostgreSQLDatabase extends SS_Database {
 				DB::query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
 			} else {
 				//Drop the constraint, we will recreate in in the next line
-				$existing_constraint=$this->query("SELECT conname FROM pg_constraint WHERE conname='{$partition_name}_pkey';");
+				$constraint_name = "{$partition_name}_pkey";
+				$existing_constraint = $this->constraintExists($constraint_name);
 				if($existing_constraint){
-					DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$partition_name}_pkey\";");
+					DB::query("ALTER TABLE \"$partition_name\" DROP CONSTRAINT \"{$constraint_name}\";");
 				}
 				$this->dropTrigger(strtolower('trigger_' . $tableName . '_insert'), $tableName);
 			}
