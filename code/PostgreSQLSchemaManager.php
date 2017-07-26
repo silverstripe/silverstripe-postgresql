@@ -497,7 +497,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
 
         if (isset($matches[1])) {
-            $alterCol = "ALTER COLUMN \"$colName\" TYPE $matches[1]\n";
+            $alterCol = "ALTER COLUMN \"$colName\" TYPE $matches[1] USING \"$colName\"::$matches[1]\n";
 
             // SET null / not null
             if (!empty($matches[2])) {
