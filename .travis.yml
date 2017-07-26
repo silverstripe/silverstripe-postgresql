@@ -1,5 +1,7 @@
 language: php
 
+dist: precise
+
 sudo: false
 
 php:
@@ -8,7 +10,7 @@ php:
 env:
   global:
     - DB="POSTGRESQL"
-    - CORE_RELEASE="master"
+    - CORE_RELEASE="4"
 
 before_script:
 # Init PHP
