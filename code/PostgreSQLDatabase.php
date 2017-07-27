@@ -1124,7 +1124,8 @@ class PostgreSQLDatabase extends SS_Database {
 			default:
 				$spec = "create index \"$tableCol\" ON \"$tableName\" (" . $indexSpec['value'] . ") $fillfactor $where";
 		}
-		return trim($spec) . ';';
+		$deleteStatement = "drop index if exists \"$tableCol\";";
+		return $deleteStatement . ' '. trim($spec) . ';';
 	}
 
 	function getDbSqlDefinition($tableName, $indexName, $indexSpec) {
