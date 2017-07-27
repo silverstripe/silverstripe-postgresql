@@ -5,15 +5,15 @@ SilverStripe\Core\Injector\Injector:
   PostgrePDODatabase:
     class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
     properties:
-      connector: %$PDOConnector
-      schemaManager: %$PostgreSQLSchemaManager
-      queryBuilder: %$PostgreSQLQueryBuilder
+      connector: '%$PDOConnector'
+      schemaManager: '%$PostgreSQLSchemaManager'
+      queryBuilder: '%$PostgreSQLQueryBuilder'
   PostgreSQLDatabase:
     class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
     properties:
-      connector: %$PostgreSQLConnector
-      schemaManager: %$PostgreSQLSchemaManager
-      queryBuilder: %$PostgreSQLQueryBuilder
+      connector: '%$PostgreSQLConnector'
+      schemaManager: '%$PostgreSQLSchemaManager'
+      queryBuilder: '%$PostgreSQLQueryBuilder'
   PostgreSQLConnector:
     class: 'SilverStripe\PostgreSQL\PostgreSQLConnector'
     type: prototype
