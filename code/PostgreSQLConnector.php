@@ -116,8 +116,8 @@ class PostgreSQLConnector extends DBConnector
 
     public function getGeneratedID($table)
     {
-        $result = $this->query("SELECT last_value FROM \"{$table}_ID_seq\";")->first();
-        return $result['last_value'];
+        $result = $this->query("SELECT currval('\"{$table}_ID_seq\"')")->first();
+        return $result['currval'];
     }
 
     public function getLastError()
