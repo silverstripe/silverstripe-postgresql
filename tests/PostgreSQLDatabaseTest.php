@@ -1,5 +1,9 @@
 <?php
 
+namespace SilverStripe\PostgreSQL\Tests;
+
+use Exception;
+use Page;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DB;
@@ -15,19 +19,18 @@ class PostgreSQLDatabaseTest extends SapphireTest
 
     public function testReadOnlyTransaction()
     {
-        if (
-            DB::get_conn()->supportsTransactions() == true
+        if (DB::get_conn()->supportsTransactions() == true
             && DB::get_conn() instanceof PostgreSQLDatabase
         ) {
-            $page=new Page();
-            $page->Title='Read only success';
+            $page = new Page();
+            $page->Title = 'Read only success';
             $page->write();
 
             DB::get_conn()->transactionStart('READ ONLY');
 
             try {
-                $page=new Page();
-                $page->Title='Read only page failed';
+                $page = new Page();
+                $page->Title = 'Read only page failed';
                 $page->write();
             } catch (Exception $e) {
                 //could not write this record
@@ -39,8 +42,8 @@ class PostgreSQLDatabaseTest extends SapphireTest
 
             DataObject::flush_and_destroy_cache();
 
-            $success=DataObject::get('Page', "\"Title\"='Read only success'");
-            $fail=DataObject::get('Page', "\"Title\"='Read only page failed'");
+            $success = DataObject::get('Page', "\"Title\"='Read only success'");
+            $fail = DataObject::get('Page', "\"Title\"='Read only page failed'");
 
             //This page should be in the system
             $this->assertTrue(is_object($success) && $success->exists());

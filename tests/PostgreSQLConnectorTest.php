@@ -1,5 +1,7 @@
 <?php
 
+namespace SilverStripe\PostgreSQL\Tests;
+
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\PostgreSQL\PostgreSQLConnector;
 
@@ -23,7 +25,7 @@ class PostgreSQLConnectorTest extends SapphireTest
 
         // Ignoring question mark placeholders within string literals
         $this->assertEquals(
-                "SELECT * FROM Table WHERE ID = $1 AND Name = $2 AND Content = '<p>What is love?</p>'",
+            "SELECT * FROM Table WHERE ID = $1 AND Name = $2 AND Content = '<p>What is love?</p>'",
             $connector->replacePlaceholders(
                 "SELECT * FROM Table WHERE ID = ? AND Name = ? AND Content = '<p>What is love?</p>'"
             )
@@ -31,7 +33,7 @@ class PostgreSQLConnectorTest extends SapphireTest
 
         // Ignoring question mark placeholders within string literals with escaped slashes
         $this->assertEquals(
-                "SELECT * FROM Table WHERE ID = $1 AND Title = '\\'' AND Content = '<p>What is love?</p>' AND Name = $2",
+            "SELECT * FROM Table WHERE ID = $1 AND Title = '\\'' AND Content = '<p>What is love?</p>' AND Name = $2",
             $connector->replacePlaceholders(
                 "SELECT * FROM Table WHERE ID = ? AND Title = '\\'' AND Content = '<p>What is love?</p>' AND Name = ?"
             )
@@ -39,7 +41,7 @@ class PostgreSQLConnectorTest extends SapphireTest
 
         // same as above, but use double single quote escape syntax
         $this->assertEquals(
-                "SELECT * FROM Table WHERE ID = $1 AND Title = '''' AND Content = '<p>What is love?</p>' AND Name = $2",
+            "SELECT * FROM Table WHERE ID = $1 AND Title = '''' AND Content = '<p>What is love?</p>' AND Name = $2",
             $connector->replacePlaceholders(
                 "SELECT * FROM Table WHERE ID = ? AND Title = '''' AND Content = '<p>What is love?</p>' AND Name = ?"
             )

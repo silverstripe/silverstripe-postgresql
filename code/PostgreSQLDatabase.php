@@ -282,7 +282,7 @@ class PostgreSQLDatabase extends Database
 
     public function getDatabaseServer()
     {
-        return "postgresql";
+        return "pgsql";
     }
 
     /**
@@ -374,14 +374,15 @@ class PostgreSQLDatabase extends Database
 
         // Get tables
         $tablesToSearch = [];
-        foreach($classesToSearch as $class) {
+        foreach ($classesToSearch as $class) {
             $tablesToSearch[$class] = DataObject::getSchema()->baseDataTable($class);
         }
 
         //We can get a list of all the tsvector columns though this query:
         //We know what tables to search in based on the $classesToSearch variable:
         $classesPlaceholders = DB::placeholders($classesToSearch);
-        $searchableColumns = $this->preparedQuery("
+        $searchableColumns = $this->preparedQuery(
+            "
 			SELECT table_name, column_name, data_type
 			FROM information_schema.columns
 			WHERE data_type='tsvector' AND table_name in ($classesPlaceholders);",
@@ -500,7 +501,7 @@ class PostgreSQLDatabase extends Database
     /*
      * This is a quick lookup to discover if the database supports particular extensions
      */
-    public function supportsExtensions($extensions=array('partitions', 'tablespaces', 'clustering'))
+    public function supportsExtensions($extensions = array('partitions', 'tablespaces', 'clustering'))
     {
         if (isset($extensions['partitions'])) {
             return true;
@@ -683,8 +684,10 @@ class PostgreSQLDatabase extends Database
     public function schemaToDatabaseName($schema)
     {
         switch ($schema) {
-            case $this->schemaOriginal: return $this->databaseOriginal;
-            default: return $schema;
+            case $this->schemaOriginal:
+                return $this->databaseOriginal;
+            default:
+                return $schema;
         }
     }
 
@@ -698,8 +701,10 @@ class PostgreSQLDatabase extends Database
     public function databaseToSchemaName($database)
     {
         switch ($database) {
-            case $this->databaseOriginal: return $this->schemaOriginal;
-            default: return $database;
+            case $this->databaseOriginal:
+                return $this->schemaOriginal;
+            default:
+                return $database;
         }
     }
 

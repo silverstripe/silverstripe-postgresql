@@ -113,6 +113,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
         return $this->postgresDatabaseList();
     }
+
     /**
      * Drops a postgres database, ignoring model_schema_as_database
      *
@@ -177,8 +178,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     public function schemaList()
     {
-        return $this->query("
-            SELECT nspname
+        return $this->query(
+            "SELECT nspname
             FROM pg_catalog.pg_namespace
             WHERE nspname <> 'information_schema' AND nspname !~ E'^pg_'"
         )->column();
@@ -186,7 +187,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     public function createTable($table, $fields = null, $indexes = null, $options = null, $advancedOptions = null)
     {
-        $fieldSchemas = $indexSchemas = "";
+        $fieldSchemas = "";
         if ($fields) {
             foreach ($fields as $k => $v) {
                 $fieldSchemas .= "\"$k\" $v,\n";
@@ -194,9 +195,6 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
         if (!empty($options[self::ID])) {
             $addOptions = $options[self::ID];
-        } elseif (!empty($options[get_class($this)])) {
-            Deprecation::notice('3.2', 'Use PostgreSQLSchemaManager::ID for referencing postgres-specific table creation options');
-            $addOptions = $options[get_class($this)];
         } else {
             $addOptions = null;
         }
@@ -211,20 +209,21 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         //If we have a fulltext search request, then we need to create a special column
         //for GiST searches
         $fulltexts = '';
-        $triggers = '';
+        $triggers = [];
         if ($indexes) {
             foreach ($indexes as $name => $this_index) {
                 if (is_array($this_index) && $this_index['type'] == 'fulltext') {
                     $ts_details = $this->fulltext($this_index, $table, $name);
                     $fulltexts .= $ts_details['fulltexts'] . ', ';
-                    $triggers .= $ts_details['triggers'];
+                    $triggers[] = $ts_details['triggers'];
                 }
             }
         }
 
+        $indexQueries = [];
         if ($indexes) {
             foreach ($indexes as $k => $v) {
-                $indexSchemas .= $this->getIndexSqlDefinition($table, $k, $v) . "\n";
+                $indexQueries[] = $this->getIndexSqlDefinition($table, $k, $v);
             }
         }
 
@@ -239,14 +238,19 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $tableSpace = '';
         }
 
-            $this->query("CREATE TABLE \"$table\" (
-                    $fieldSchemas
-                    $fulltexts
-                    primary key (\"ID\")
-                )$tableSpace; $indexSchemas $addOptions");
+        $this->query(
+            "CREATE TABLE \"$table\" (
+                $fieldSchemas
+                $fulltexts
+                primary key (\"ID\")
+            )$tableSpace $addOptions"
+        );
+        foreach ($indexQueries as $indexQuery) {
+            $this->query($indexQuery);
+        }
 
-        if ($triggers!='') {
-            $this->query($triggers);
+        foreach ($triggers as $trigger) {
+            $this->query($trigger);
         }
 
         //If we have a partitioning requirement, we do that here:
@@ -256,7 +260,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         //Lastly, clustering goes here:
         if ($advancedOptions && isset($advancedOptions['cluster'])) {
-            $this->query("CLUSTER \"$table\" USING \"{$advancedOptions['cluster']}\";");
+            $this->query("CLUSTER \"$table\" USING \"{$advancedOptions['cluster']}\"");
         }
 
         return $table;
@@ -299,9 +303,16 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         return $this->buildPostgresIndexName($tableName, $triggerName, 'ts');
     }
 
-    public function alterTable($table, $newFields = null, $newIndexes = null, $alteredFields = null, $alteredIndexes = null, $alteredOptions = null, $advancedOptions = null)
-    {
-        $alterList = array();
+    public function alterTable(
+        $table,
+        $newFields = null,
+        $newIndexes = null,
+        $alteredFields = null,
+        $alteredIndexes = null,
+        $alteredOptions = null,
+        $advancedOptions = null
+    ) {
+        $alterList = [];
         if ($newFields) {
             foreach ($newFields as $fieldName => $fieldSpec) {
                 $alterList[] = "ADD \"$fieldName\" $fieldSpec";
@@ -319,46 +330,49 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         //Do we need to do anything with the tablespaces?
         if ($alteredOptions && isset($advancedOptions['tablespace'])) {
-            $this->createOrReplaceTablespace($advancedOptions['tablespace']['name'], $advancedOptions['tablespace']['location']);
+            $this->createOrReplaceTablespace(
+                $advancedOptions['tablespace']['name'],
+                $advancedOptions['tablespace']['location']
+            );
             $this->query("ALTER TABLE \"$table\" SET TABLESPACE {$advancedOptions['tablespace']['name']};");
         }
 
         //DB ABSTRACTION: we need to change the constraints to be a separate 'add' command,
         //see http://www.postgresql.org/docs/8.1/static/sql-altertable.html
-        $alterIndexList = array();
+        $alterIndexList = [];
         //Pick up the altered indexes here:
         $fieldList = $this->fieldList($table);
-        $fulltexts = false;
-        $drop_triggers = false;
-        $triggers = false;
+        $fulltexts = [];
+        $dropTriggers = [];
+        $triggers = [];
         if ($alteredIndexes) {
-            foreach ($alteredIndexes as $indexName=>$indexSpec) {
+            foreach ($alteredIndexes as $indexName => $indexSpec) {
                 $indexNamePG = $this->buildPostgresIndexName($table, $indexName);
 
-                if ($indexSpec['type']=='fulltext') {
+                if ($indexSpec['type'] == 'fulltext') {
                     //For full text indexes, we need to drop the trigger, drop the index, AND drop the column
 
-                //Go and get the tsearch details:
-                $ts_details = $this->fulltext($indexSpec, $table, $indexName);
+                    //Go and get the tsearch details:
+                    $ts_details = $this->fulltext($indexSpec, $table, $indexName);
 
-                //Drop this column if it already exists:
+                    //Drop this column if it already exists:
 
-                //No IF EXISTS option is available for Postgres <9.0
-                if (array_key_exists($ts_details['ts_name'], $fieldList)) {
-                    $fulltexts.="ALTER TABLE \"{$table}\" DROP COLUMN \"{$ts_details['ts_name']}\";";
+                    //No IF EXISTS option is available for Postgres <9.0
+                    if (array_key_exists($ts_details['ts_name'], $fieldList)) {
+                        $fulltexts[] = "ALTER TABLE \"{$table}\" DROP COLUMN \"{$ts_details['ts_name']}\";";
+                    }
+
+                    // We'll execute these later:
+                    $triggerNamePG = $this->buildPostgresTriggerName($table, $indexName);
+                    $dropTriggers[] = "DROP TRIGGER IF EXISTS \"$triggerNamePG\" ON \"$table\";";
+                    $fulltexts[] = "ALTER TABLE \"{$table}\" ADD COLUMN {$ts_details['fulltexts']};";
+                    $triggers[] = $ts_details['triggers'];
                 }
 
-                // We'll execute these later:
-                $triggerNamePG = $this->buildPostgresTriggerName($table, $indexName);
-                    $drop_triggers.= "DROP TRIGGER IF EXISTS \"$triggerNamePG\" ON \"$table\";";
-                    $fulltexts .= "ALTER TABLE \"{$table}\" ADD COLUMN {$ts_details['fulltexts']};";
-                    $triggers .= $ts_details['triggers'];
-                }
-
-            // Create index action (including fulltext)
-            $alterIndexList[] = "DROP INDEX IF EXISTS \"$indexNamePG\";";
+                // Create index action (including fulltext)
+                $alterIndexList[] = "DROP INDEX IF EXISTS \"$indexNamePG\";";
                 $createIndex = $this->getIndexSqlDefinition($table, $indexName, $indexSpec);
-                if ($createIndex!==false) {
+                if ($createIndex) {
                     $alterIndexList[] = $createIndex;
                 }
             }
@@ -368,25 +382,25 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         if ($newIndexes) {
             foreach ($newIndexes as $indexName => $indexSpec) {
                 $indexNamePG = $this->buildPostgresIndexName($table, $indexName);
-            //If we have a fulltext search request, then we need to create a special column
-            //for GiST searches
-            //Pick up the new indexes here:
-            if ($indexSpec['type']=='fulltext') {
-                $ts_details=$this->fulltext($indexSpec, $table, $indexName);
-                if (!isset($fieldList[$ts_details['ts_name']])) {
-                    $fulltexts.="ALTER TABLE \"{$table}\" ADD COLUMN {$ts_details['fulltexts']};";
-                    $triggers.=$ts_details['triggers'];
+                //If we have a fulltext search request, then we need to create a special column
+                //for GiST searches
+                //Pick up the new indexes here:
+                if ($indexSpec['type'] == 'fulltext') {
+                    $ts_details = $this->fulltext($indexSpec, $table, $indexName);
+                    if (!isset($fieldList[$ts_details['ts_name']])) {
+                        $fulltexts[] = "ALTER TABLE \"{$table}\" ADD COLUMN {$ts_details['fulltexts']};";
+                        $triggers[] = $ts_details['triggers'];
+                    }
                 }
-            }
 
-            //Check that this index doesn't already exist:
-            $indexes=$this->indexList($table);
+                //Check that this index doesn't already exist:
+                $indexes = $this->indexList($table);
                 if (isset($indexes[$indexName])) {
                     $alterIndexList[] = "DROP INDEX IF EXISTS \"$indexNamePG\";";
                 }
 
-                $createIndex=$this->getIndexSqlDefinition($table, $indexName, $indexSpec);
-                if ($createIndex!==false) {
+                $createIndex = $this->getIndexSqlDefinition($table, $indexName, $indexSpec);
+                if ($createIndex) {
                     $alterIndexList[] = $createIndex;
                 }
             }
@@ -399,7 +413,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
         //Do we need to create a tablespace for this item?
         if ($advancedOptions && isset($advancedOptions['extensions']['tablespace'])) {
-            $extensions=$advancedOptions['extensions'];
+            $extensions = $advancedOptions['extensions'];
             $this->createOrReplaceTablespace($extensions['tablespace']['name'], $extensions['tablespace']['location']);
         }
 
@@ -412,24 +426,19 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
 
         //Create any fulltext columns and triggers here:
-        if ($fulltexts) {
-            $this->query($fulltexts);
+        foreach ($fulltexts as $fulltext) {
+            $this->query($fulltext);
         }
-        if ($drop_triggers) {
-            $this->query($drop_triggers);
+        foreach ($dropTriggers as $dropTrigger) {
+            $this->query($dropTrigger);
         }
 
-        if ($triggers) {
-            $this->query($triggers);
-
-            $triggerbits=explode(';', $triggers);
-            foreach ($triggerbits as $trigger) {
-                $trigger_fields=$this->triggerFieldsFromTrigger($trigger);
-
-                if ($trigger_fields) {
-                    //We need to run a simple query to force the database to update the triggered columns
-                    $this->query("UPDATE \"{$table}\" SET \"{$trigger_fields[0]}\"=\"$trigger_fields[0]\";");
-                }
+        foreach ($triggers as $trigger) {
+            $this->query($trigger);
+            $triggerFields = $this->triggerFieldsFromTrigger($trigger);
+            if ($triggerFields) {
+                //We need to run a simple query to force the database to update the triggered columns
+                $this->query("UPDATE \"{$table}\" SET \"{$triggerFields[0]}\"=\"$triggerFields[0]\";");
             }
         }
 
@@ -454,11 +463,12 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 "SELECT relid FROM pg_stat_user_tables WHERE relname = ?;",
                 array($table)
             )->first();
-            $oid=$stats['relid'];
+            $oid = $stats['relid'];
 
             //Now we can run a long query to get the clustered status:
             //If anyone knows a better way to get the clustered status, then feel free to replace this!
-            $clustered = $this->preparedQuery("
+            $clustered = $this->preparedQuery(
+                "
                 SELECT c2.relname, i.indisclustered 
                 FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
                 WHERE c.oid = ? AND c.oid = i.indrelid AND i.indexrelid = c2.oid AND indisclustered='t';",
@@ -488,11 +498,11 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         $pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
         preg_match($pattern, $colSpec, $matches);
 
-        if (sizeof($matches)==0) {
+        if (sizeof($matches) == 0) {
             return '';
         }
 
-        if ($matches[1]=='serial8') {
+        if ($matches[1] == 'serial8') {
             return '';
         }
 
@@ -515,20 +525,20 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $constraintExists = $this->constraintExists($constraintName, false);
             if (isset($matches[4])) {
                 //Take this new constraint and see what's outstanding from the target table:
-                $constraint_bits=explode('(', $matches[4]);
-                $constraint_values=trim($constraint_bits[2], ')');
-                $constraint_values_bits=explode(',', $constraint_values);
-                $default=trim($constraint_values_bits[0], " '");
+                $constraint_bits = explode('(', $matches[4]);
+                $constraint_values = trim($constraint_bits[2], ')');
+                $constraint_values_bits = explode(',', $constraint_values);
+                $default = trim($constraint_values_bits[0], " '");
 
                 //Now go and convert anything that's not in this list to 'Page'
                 //We have to run this as a query, not as part of the alteration queries due to the way they are constructed.
-                $updateConstraint='';
-                $updateConstraint.="UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+                $updateConstraint = '';
+                $updateConstraint .= "UPDATE \"{$tableName}\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 if ($this->hasTable("{$tableName}_Live")) {
-                    $updateConstraint.="UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+                    $updateConstraint .= "UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 }
                 if ($this->hasTable("{$tableName}_versions")) {
-                    $updateConstraint.="UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+                    $updateConstraint .= "UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 }
 
                 $this->query($updateConstraint);
@@ -595,13 +605,14 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         //This gets us more information than we need, but I've included it all for the moment....
 
         //if(!isset(self::$cached_fieldlists[$table])){
-            $fields = $this->preparedQuery("
+        $fields = $this->preparedQuery(
+            "
                 SELECT ordinal_position, column_name, data_type, column_default,
                 is_nullable, character_maximum_length, numeric_precision, numeric_scale
                 FROM information_schema.columns WHERE table_name = ? and table_schema = ?
                 ORDER BY ordinal_position;",
-                array($table, $this->database->currentSchema())
-            );
+            array($table, $this->database->currentSchema())
+        );
 
         $output = array();
         if ($fields) {
@@ -618,62 +629,70 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                             //CHECK ("ClassName"::text = 'PageComment'::text)
 
                             //TODO: replace all this with a regular expression!
-                            $value=$constraint['pg_get_constraintdef'];
-                            $value=substr($value, strpos($value, '='));
-                            $value=str_replace("''", "'", $value);
+                            $value = $constraint['pg_get_constraintdef'];
+                            $value = substr($value, strpos($value, '='));
+                            $value = str_replace("''", "'", $value);
 
-                            $in_value=false;
-                            $constraints=array();
-                            $current_value='';
-                            for ($i=0; $i<strlen($value); $i++) {
-                                $char=substr($value, $i, 1);
+                            $in_value = false;
+                            $constraints = array();
+                            $current_value = '';
+                            for ($i = 0; $i < strlen($value); $i++) {
+                                $char = substr($value, $i, 1);
                                 if ($in_value) {
-                                    $current_value.=$char;
+                                    $current_value .= $char;
                                 }
 
-                                if ($char=="'") {
+                                if ($char == "'") {
                                     if (!$in_value) {
-                                        $in_value=true;
+                                        $in_value = true;
                                     } else {
-                                        $in_value=false;
-                                        $constraints[]=substr($current_value, 0, -1);
-                                        $current_value='';
+                                        $in_value = false;
+                                        $constraints[] = substr($current_value, 0, -1);
+                                        $current_value = '';
                                     }
                                 }
                             }
 
-                            if (sizeof($constraints)>0) {
+                            if (sizeof($constraints) > 0) {
                                 //Get the default:
-                                $default=trim(substr($field['column_default'], 0, strpos($field['column_default'], '::')), "'");
-                                $output[$field['column_name']]=$this->enum(array('default'=>$default, 'name'=>$field['column_name'], 'enums'=>$constraints));
+                                $default = trim(substr(
+                                    $field['column_default'],
+                                    0,
+                                    strpos($field['column_default'], '::')
+                                ), "'");
+                                $output[$field['column_name']] = $this->enum(array(
+                                    'default' => $default,
+                                    'name' => $field['column_name'],
+                                    'enums' => $constraints
+                                ));
                             }
                         } else {
-                            $output[$field['column_name']]='varchar(' . $field['character_maximum_length'] . ')';
+                            $output[$field['column_name']] = 'varchar(' . $field['character_maximum_length'] . ')';
                         }
                         break;
 
                     case 'numeric':
-                        $output[$field['column_name']]='decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . floatval($field['column_default']);
+                        $output[$field['column_name']] = 'decimal(' . $field['numeric_precision'] . ',' . $field['numeric_scale'] . ') default ' . floatval($field['column_default']);
                         break;
 
                     case 'integer':
-                        $output[$field['column_name']]='integer default ' . (int)$field['column_default'];
+                        $output[$field['column_name']] = 'integer default ' . (int)$field['column_default'];
                         break;
 
                     case 'timestamp without time zone':
-                        $output[$field['column_name']]='timestamp';
+                        $output[$field['column_name']] = 'timestamp';
                         break;
 
                     case 'smallint':
-                        $output[$field['column_name']]='smallint default ' . (int)$field['column_default'];
+                        $output[$field['column_name']] = 'smallint default ' . (int)$field['column_default'];
                         break;
 
                     case 'time without time zone':
-                        $output[$field['column_name']]='time';
+                        $output[$field['column_name']] = 'time';
                         break;
 
                     case 'double precision':
-                        $output[$field['column_name']]='float';
+                        $output[$field['column_name']] = 'float';
                         break;
 
                     default:
@@ -690,12 +709,12 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         return $output;
     }
 
-    public function clearCachedFieldlist($tableName=false)
+    public function clearCachedFieldlist($tableName = false)
     {
         if ($tableName) {
             unset(self::$cached_fieldlists[$tableName]);
         } else {
-            self::$cached_fieldlists=array();
+            self::$cached_fieldlists = array();
         }
         return true;
     }
@@ -761,7 +780,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 break;
 
             case 'index':
-            //'index' is the same as default, just a normal index with the default type decided by the database.
+                //'index' is the same as default, just a normal index with the default type decided by the database.
             default:
                 $spec = "create index \"$tableCol\" ON \"$tableName\" (" . $this->implodeColumnList($indexSpec['columns']) . ") $fillfactor $where";
         }
@@ -790,22 +809,36 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      * Given a trigger name attempt to determine the columns upon which it acts
      *
      * @param string $triggerName Postgres trigger name
+     * @param string $table
      * @return array List of columns
      */
-    protected function extractTriggerColumns($triggerName)
+    protected function extractTriggerColumns($triggerName, $table)
     {
         $trigger = $this->preparedQuery(
-            "SELECT tgargs FROM pg_catalog.pg_trigger WHERE tgname = ?",
-            array($triggerName)
+            "SELECT t.tgargs 
+            FROM pg_catalog.pg_trigger t
+            INNER JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid 
+            INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = ?
+                AND n.nspname = ?
+                AND t.tgname = ?",
+            [
+                $table,
+                $this->database->currentSchema(),
+                $triggerName
+            ]
         )->first();
 
-        // Option 1: output as a string
-        if (strpos($trigger['tgargs'], '\000') !== false) {
-            $argList = explode('\000', $trigger['tgargs']);
-            array_pop($argList);
+        // Convert stream to string
+        if (is_resource($trigger['tgargs'])) {
+            $trigger['tgargs'] = stream_get_contents($trigger['tgargs']);
+        }
 
-        // Option 2: hex-encoded (not sure why this happens, depends on PGSQL config)
+        if (strpos($trigger['tgargs'], "\000") !== false) {
+            // Option 1: output as a string (PDO)
+            $argList = array_filter(explode("\000", $trigger['tgargs']));
         } else {
+            // Option 2: hex-encoded (pg_sql non-pdo)
             $bytes = str_split($trigger['tgargs'], 2);
             $argList = array();
             $nextArg = "";
@@ -826,7 +859,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     public function indexList($table)
     {
         //Retrieve a list of indexes for the specified table
-        $indexes = $this->preparedQuery("
+        $indexes = $this->preparedQuery(
+            "
             SELECT tablename, indexname, indexdef
             FROM pg_catalog.pg_indexes
             WHERE tablename = ? AND schemaname = ?;",
@@ -843,12 +877,12 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $type = '';
 
             //Check for uniques:
-            if (substr($index['indexdef'], 0, 13)=='CREATE UNIQUE') {
+            if (substr($index['indexdef'], 0, 13) == 'CREATE UNIQUE') {
                 $type = 'unique';
             }
 
             //check for hashes, btrees etc:
-            if (strpos(strtolower($index['indexdef']), 'using hash ')!==false) {
+            if (strpos(strtolower($index['indexdef']), 'using hash ') !== false) {
                 $type = 'hash';
             }
 
@@ -856,7 +890,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             //if(strpos(strtolower($index['indexdef']), 'using btree ')!==false)
             //    $prefix='using btree ';
 
-            if (strpos(strtolower($index['indexdef']), 'using rtree ')!==false) {
+            if (strpos(strtolower($index['indexdef']), 'using rtree ') !== false) {
                 $type = 'rtree';
             }
 
@@ -865,7 +899,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 $type = 'fulltext';
                 // Extract trigger information from postgres
                 $triggerName = preg_replace('/^ix_/', 'ts_', $index['indexname']);
-                $columns = $this->extractTriggerColumns($triggerName);
+                $columns = $this->extractTriggerColumns($triggerName, $table);
                 $columnString = $this->implodeColumnList($columns);
             } else {
                 $columnString = $this->quoteColumnSpecString($index['indexdef']);
@@ -908,7 +942,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     protected function constraintExists($constraint, $cache = true)
     {
         if (!$cache || !isset(self::$cached_constraints[$constraint])) {
-            $value = $this->preparedQuery("
+            $value = $this->preparedQuery(
+                "
                 SELECT conname,pg_catalog.pg_get_constraintdef(r.oid, true)
                 FROM pg_catalog.pg_constraint r
                 INNER JOIN pg_catalog.pg_namespace n
@@ -968,7 +1003,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     protected function dropTrigger($triggerName, $tableName)
     {
-        $exists = $this->preparedQuery("
+        $exists = $this->preparedQuery(
+            "
             SELECT trigger_name
             FROM information_schema.triggers
             WHERE trigger_name = ? AND trigger_schema = ?;",
@@ -988,18 +1024,18 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     protected function triggerFieldsFromTrigger($trigger)
     {
         if ($trigger) {
-            $tsvector='tsvector_update_trigger';
-            $ts_pos=strpos($trigger, $tsvector);
-            $details=trim(substr($trigger, $ts_pos+strlen($tsvector)), '();');
+            $tsvector = 'tsvector_update_trigger';
+            $ts_pos = strpos($trigger, $tsvector);
+            $details = trim(substr($trigger, $ts_pos + strlen($tsvector)), '();');
             //Now split this into bits:
-            $bits=explode(',', $details);
+            $bits = explode(',', $details);
 
-            $fields=$bits[2];
+            $fields = $bits[2];
 
-            $field_bits=explode(',', str_replace('"', '', $fields));
-            $result=array();
+            $field_bits = explode(',', str_replace('"', '', $fields));
+            $result = array();
             foreach ($field_bits as $field_bit) {
-                $result[]=trim($field_bit);
+                $result[] = trim($field_bit);
             }
 
             return $result;
@@ -1063,7 +1099,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     public function enum($values)
     {
         $default = " default '{$values['default']}'";
-        return "varchar(255)" . $default . " check (\"" . $values['name'] . "\" in ('" . implode('\', \'', $values['enums']) . "'))";
+        return "varchar(255)" . $default . " check (\"" . $values['name'] . "\" in ('" . implode(
+            '\', \'',
+            $values['enums']
+        ) . "', null))";
     }
 
     /**
@@ -1250,7 +1289,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
      */
     protected function enumValuesFromConstraint($constraint)
     {
-        $constraint = substr($constraint, strpos($constraint, 'ANY (ARRAY[')+11);
+        $constraint = substr($constraint, strpos($constraint, 'ANY (ARRAY[') + 11);
         $constraint = substr($constraint, 0, -11);
         $constraints = array();
         $segments = explode(',', $constraint);
@@ -1314,21 +1353,25 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         //We need the plpgsql language to be installed for this to work:
         $this->createLanguage('plpgsql');
 
-        $trigger='CREATE OR REPLACE FUNCTION ' . $tableName . '_insert_trigger() RETURNS TRIGGER AS $$ BEGIN ';
-        $first=true;
+        $trigger = 'CREATE OR REPLACE FUNCTION ' . $tableName . '_insert_trigger() RETURNS TRIGGER AS $$ BEGIN ';
+        $first = true;
 
         //Do we need to create a tablespace for this item?
         if ($extensions && isset($extensions['tablespace'])) {
             $this->createOrReplaceTablespace($extensions['tablespace']['name'], $extensions['tablespace']['location']);
-            $tableSpace=' TABLESPACE ' . $extensions['tablespace']['name'];
+            $tableSpace = ' TABLESPACE ' . $extensions['tablespace']['name'];
         } else {
-            $tableSpace='';
+            $tableSpace = '';
         }
 
         foreach ($partitions as $partition_name => $partition_value) {
             //Check that this child table does not already exist:
             if (!$this->hasTable($partition_name)) {
-                $this->query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace('NEW.', '', $partition_value) . ")) INHERITS (\"$tableName\")$tableSpace;");
+                $this->query("CREATE TABLE \"$partition_name\" (CHECK (" . str_replace(
+                    'NEW.',
+                    '',
+                    $partition_value
+                ) . ")) INHERITS (\"$tableName\")$tableSpace;");
             } else {
                 //Drop the constraint, we will recreate in in the next line
                 $constraintName = "{$partition_name}_pkey";
@@ -1342,10 +1385,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $this->query("ALTER TABLE \"$partition_name\" ADD CONSTRAINT \"{$partition_name}_pkey\" PRIMARY KEY (\"ID\");");
 
             if ($first) {
-                $trigger.='IF';
-                $first=false;
+                $trigger .= 'IF';
+                $first = false;
             } else {
-                $trigger.='ELSIF';
+                $trigger .= 'ELSIF';
             }
 
             $trigger .= " ($partition_value) THEN INSERT INTO \"$partition_name\" VALUES (NEW.*);";
@@ -1354,7 +1397,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 // We need to propogate the indexes through to the child pages.
                 // Some of this code is duplicated, and could be tidied up
                 foreach ($indexes as $name => $this_index) {
-                    if ($this_index['type']=='fulltext') {
+                    if ($this_index['type'] == 'fulltext') {
                         $fillfactor = $where = '';
                         if (isset($this_index['fillfactor'])) {
                             $fillfactor = 'WITH (FILLFACTOR = ' . $this_index['fillfactor'] . ')';
@@ -1363,7 +1406,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                             $where = 'WHERE ' . $this_index['where'];
                         }
                         $clusterMethod = PostgreSQLDatabase::default_fts_cluster_method();
-                        $this->query("CREATE INDEX \"" . $this->buildPostgresIndexName($partition_name, $this_index['name'])  . "\" ON \"" . $partition_name . "\" USING $clusterMethod(\"ts_" . $name . "\") $fillfactor $where");
+                        $this->query("CREATE INDEX \"" . $this->buildPostgresIndexName(
+                            $partition_name,
+                            $this_index['name']
+                        ) . "\" ON \"" . $partition_name . "\" USING $clusterMethod(\"ts_" . $name . "\") $fillfactor $where");
                         $ts_details = $this->fulltext($this_index, $partition_name, $name);
                         $this->query($ts_details['triggers']);
                     } else {
