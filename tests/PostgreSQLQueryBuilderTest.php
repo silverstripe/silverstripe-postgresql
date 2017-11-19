@@ -1,5 +1,6 @@
 <?php
 
+namespace SilverStripe\PostgreSQL\Tests;
 
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\ORM\Queries\SQLSelect;

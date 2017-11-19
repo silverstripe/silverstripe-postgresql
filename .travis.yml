@@ -1,8 +1,10 @@
 language: php
 
-dist: precise
+dist: trusty
 
-sudo: false
+cache:
+  directories:
+    - $HOME/.composer/cache/files
 
 php:
   - 5.6
@@ -10,23 +12,33 @@ php:
 env:
   global:
     - DB="PGSQL"
-    - CORE_RELEASE="4"
+
+matrix:
+  fast_finish: true
+  include:
+    - php: 5.6
+      env:
+        - PHPUNIT_TEST=framework
+    - php: 5.6
+      env:
+        - PHPUNIT_TEST=postgresql
+        - PHPCS_TEST=1
 
 before_script:
 # Init PHP
-  - printf "\n" | pecl install imagick
   - phpenv rehash
   - phpenv config-rm xdebug.ini
+  - export PATH=~/.composer/vendor/bin:$PATH
   - echo 'memory_limit = 2048M' >> ~/.phpenv/versions/$(phpenv version-name)/etc/conf.d/travis.ini
 
-# Temporarily update to 1.5.x-dev of composer
-  - composer self-update --snapshot
-
 # Install composer dependencies
+  - composer validate
   - composer install --prefer-dist
-  - composer require --prefer-dist --no-update symfony/config:^3.2 silverstripe/framework:4.0.x-dev silverstripe/cms:4.0.x-dev silverstripe/siteconfig:4.0.x-dev silverstripe/config:1.0.x-dev silverstripe/admin:1.0.x-dev silverstripe/assets:1.0.x-dev silverstripe/versioned:1.0.x-dev
+  - composer require --prefer-dist --no-update silverstripe/recipe-cms:1.0.x-dev
   - composer update
+  - if [[ $PHPCS_TEST ]]; then composer global require squizlabs/php_codesniffer:^3 --prefer-dist --no-interaction --no-progress --no-suggest -o; fi
 
 script:
- - vendor/bin/phpunit ./tests
- - vendor/bin/phpunit ./framework/tests
+  - if [[ $PHPUNIT_TEST == postgresql ]]; then vendor/bin/phpunit ./tests; fi
+  - if [[ $PHPUNIT_TEST == framework ]]; then vendor/bin/phpunit ./vendor/silverstripe/framework/tests/php; fi
+  - if [[ $PHPCS_TEST ]]; then composer run-script lint; fi

@@ -1,27 +1,41 @@
 {
-  "name": "silverstripe/postgresql",
-  "description": "SilverStripe now has tentative support for PostgreSQL ('Postgres')",
-  "type": "silverstripe-vendormodule",
-  "keywords": ["silverstripe", "postgresql", "database"],
-  "license": "BSD-3-Clause",
-  "authors": [
-    {
-      "name": "Sam Minnée",
-      "email": "sam@silverstripe.com"
-    }
-  ],
-  "require": {
-    "silverstripe/framework": "^4.0@dev",
-    "silverstripe/vendor-plugin": "^1.0"
-  },
-  "require-dev": {
-    "phpunit/phpunit": "^5.7"
-  },
-  "extra": {
-    "branch-alias": {
-      "dev-master": "2.0.x-dev"
-    }
-  },
-  "minimum-stability": "dev",
-  "prefer-stable": true
+    "name": "silverstripe/postgresql",
+    "description": "SilverStripe now has tentative support for PostgreSQL ('Postgres')",
+    "type": "silverstripe-vendormodule",
+    "keywords": [
+        "silverstripe",
+        "postgresql",
+        "database"
+    ],
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Sam Minnée",
+            "email": "sam@silverstripe.com"
+        }
+    ],
+    "require": {
+        "silverstripe/framework": "^4",
+        "silverstripe/vendor-plugin": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^5.7"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "2.0.x-dev"
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "SilverStripe\\PostgreSQL\\": "code/",
+            "SilverStripe\\PostgreSQL\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "lint": "phpcs code/ tests/",
+        "lint-clean": "phpcbf code/ tests/"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
