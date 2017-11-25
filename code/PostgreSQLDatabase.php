@@ -352,16 +352,13 @@ class PostgreSQLDatabase extends SS_Database {
 		if($keywords) $orderBy = " ORDER BY $sortBy";
 		else $orderBy='';
 
-		$fullQuery = "SELECT * FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
-
-		// Get the total items in this search
-		$totalItemsQuery = "SELECT COUNT(*) AS totalitems FROM (" . implode(" UNION ", $tables) . ") AS q1";
-		$totalCount = DB::query($totalItemsQuery);
+		$fullQuery = "SELECT *, count(*) OVER() as _fullcount FROM (" . implode(" UNION ", $tables) . ") AS q1 $orderBy LIMIT $limit OFFSET $offset";
 
 		// Get records
 		$records = $this->preparedQuery($fullQuery, $tableParameters);
 		foreach($records as $record){
-			$objects[] = new $record['ClassName']($record);
+			$objects[] = Injector::inst()->createWithArgs($record['ClassName'], array($record));
+			$totalCount = $record['_fullcount'];
 		}
 
 		if(isset($objects)) $results = new ArrayList($objects);
@@ -370,7 +367,7 @@ class PostgreSQLDatabase extends SS_Database {
 		$list->setLimitItems(false);
 		$list->setPageStart($start);
 		$list->setPageLength($pageLength);
-		$list->setTotalItems($totalCount->value());
+		$list->setTotalItems($totalCount);
 		return $list;
 	}
 
