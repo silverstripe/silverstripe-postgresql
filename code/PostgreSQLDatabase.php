@@ -356,6 +356,8 @@ class PostgreSQLDatabase extends SS_Database {
 
 		// Get records
 		$records = $this->preparedQuery($fullQuery, $tableParameters);
+		
+		$totalCount = 0;
 		foreach($records as $record){
 			$objects[] = Injector::inst()->createWithArgs($record['ClassName'], array($record));
 			$totalCount = $record['_fullcount'];
