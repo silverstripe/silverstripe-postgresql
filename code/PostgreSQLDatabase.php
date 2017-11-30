@@ -306,6 +306,7 @@ class PostgreSQLDatabase extends Database
      * @param int|boolean $errorLevel The level of error reporting to enable for
      * the query, or false if no error should be raised
      * @return boolean Flag indicating success
+     * @throws Exception If the schema doesn't exist
      */
     public function setSchema($schema, $create = false, $errorLevel = E_USER_ERROR)
     {
@@ -313,7 +314,7 @@ class PostgreSQLDatabase extends Database
             // Check DB creation permisson
             if (!$create) {
                 if ($errorLevel !== false) {
-                    user_error("Schema $schema does not exist", $errorLevel);
+                    throw new Exception("Schema $schema does not exist");
                 }
                 $this->schema = null;
                 return false;
@@ -756,7 +757,7 @@ class PostgreSQLDatabase extends Database
             // Check DB creation permisson
             if (!$create) {
                 if ($errorLevel !== false) {
-                    user_error("Attempted to connect to non-existing database \"$name\"", $errorLevel);
+                    throw new Exception('Attempted to connect to non-existing database "$name"');
                 }
                 // Unselect database
                 $this->connector->unloadDatabase();
