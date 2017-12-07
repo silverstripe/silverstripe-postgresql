@@ -261,6 +261,9 @@ class PostgreSQLDatabase extends SS_Database {
 	 * @return object DataObjectSet of result pages
 	 */
 	public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false) {
+		$start = (int)$start;
+		$pageLength = (int)$pageLength;
+
 		//Fix the keywords to be ts_query compatitble:
 		//Spaces must have pipes
 		//@TODO: properly handle boolean operators here.
