@@ -362,6 +362,9 @@ class PostgreSQLDatabase extends Database
      */
     public function searchEngine($classesToSearch, $keywords, $start, $pageLength, $sortBy = "ts_rank DESC", $extraFilter = "", $booleanSearch = false, $alternativeFileFilter = "", $invertedMatch = false)
     {
+        $start = (int)$start;
+        $pageLength = (int)$pageLength;
+
         //Fix the keywords to be ts_query compatitble:
         //Spaces must have pipes
         //@TODO: properly handle boolean operators here.
@@ -383,9 +386,9 @@ class PostgreSQLDatabase extends Database
         $classesPlaceholders = DB::placeholders($classesToSearch);
         $searchableColumns = $this->preparedQuery(
             "
-			SELECT table_name, column_name, data_type
-			FROM information_schema.columns
-			WHERE data_type='tsvector' AND table_name in ($classesPlaceholders);",
+            SELECT table_name, column_name, data_type
+            FROM information_schema.columns
+            WHERE data_type='tsvector' AND table_name in ($classesPlaceholders);",
             array_values($tablesToSearch)
         );
         if (!$searchableColumns->numRecords()) {
@@ -583,7 +586,7 @@ class PostgreSQLDatabase extends Database
     {
         preg_match_all('/%(.)/', $format, $matches);
         foreach ($matches[1] as $match) {
-            if (array_search($match, array('Y', 'm', 'd', 'H', 'i', 's', 'U')) === false) {
+            if (array_search($match, array('Y','m','d','H','i','s','U')) === false) {
                 user_error('formattedDatetimeClause(): unsupported format character %' . $match, E_USER_WARNING);
             }
         }
