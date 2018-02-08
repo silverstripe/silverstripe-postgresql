@@ -37,6 +37,11 @@ class PostgreSQLDatabase extends Database
     protected $schema;
 
     /**
+     * @var bool
+     */
+    protected $transactionNesting = 0;
+
+    /**
      * Toggle if transactions are supported. Defaults to true.
      *
      * @var bool
@@ -519,15 +524,20 @@ class PostgreSQLDatabase extends Database
 
     public function transactionStart($transaction_mode = false, $session_characteristics = false)
     {
-        $this->query('BEGIN;');
+        if ($this->transactionNesting > 0) {
+            $this->transactionSavepoint('NESTEDTRANSACTION' . $this->transactionNesting);
+        } else {
+            $this->query('BEGIN;');
 
-        if ($transaction_mode) {
-            $this->query("SET TRANSACTION {$transaction_mode};");
-        }
+            if ($transaction_mode) {
+                $this->query("SET TRANSACTION {$transaction_mode};");
+            }
 
-        if ($session_characteristics) {
-            $this->query("SET SESSION CHARACTERISTICS AS TRANSACTION {$session_characteristics};");
+            if ($session_characteristics) {
+                $this->query("SET SESSION CHARACTERISTICS AS TRANSACTION {$session_characteristics};");
+            }
         }
+        ++$this->transactionNesting;
     }
 
     public function transactionSavepoint($savepoint)
@@ -538,15 +548,24 @@ class PostgreSQLDatabase extends Database
     public function transactionRollback($savepoint = false)
     {
         if ($savepoint) {
-            $this->query("ROLLBACK TO {$savepoint};");
+            $this->query('ROLLBACK TO ' . $savepoint);
         } else {
-            $this->query('ROLLBACK;');
+            --$this->transactionNesting;
+            if ($this->transactionNesting > 0) {
+                $this->transactionRollback('NESTEDTRANSACTION' . $this->transactionNesting);
+            } else {
+                $this->query('ROLLBACK');
+            }
         }
     }
 
     public function transactionEnd($chain = false)
     {
-        $this->query('COMMIT;');
+        --$this->transactionNesting;
+        if ($this->transactionNesting <= 0) {
+            $this->transactionNesting = 0;
+            $this->query('COMMIT;');
+        }
     }
 
     public function comparisonClause($field, $value, $exact = false, $negate = false, $caseSensitive = null, $parameterised = false)
