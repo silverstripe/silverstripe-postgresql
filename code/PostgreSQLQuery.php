@@ -34,19 +34,15 @@ class PostgreSQLQuery extends Query
         }
     }
 
-    public function seek($row)
+    public function getIterator()
     {
-        pg_result_seek($this->handle, $row);
-        return pg_fetch_assoc($this->handle);
+        while ($data = pg_fetch_assoc($this->handle)) {
+            yield $data;
+        }
     }
 
     public function numRecords()
     {
         return pg_num_rows($this->handle);
-    }
-
-    public function nextRecord()
-    {
-        return pg_fetch_assoc($this->handle);
     }
 }
