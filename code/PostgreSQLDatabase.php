@@ -547,16 +547,31 @@ class PostgreSQLDatabase extends Database
 
     public function transactionRollback($savepoint = false)
     {
+        // Named savepoint
         if ($savepoint) {
             $this->query('ROLLBACK TO ' . $savepoint);
-        } else {
-            --$this->transactionNesting;
-            if ($this->transactionNesting > 0) {
-                $this->transactionRollback('NESTEDTRANSACTION' . $this->transactionNesting);
-            } else {
-                $this->query('ROLLBACK');
-            }
+            return true;
         }
+
+        // Abort if unable to unnest, otherwise jump up a level
+        if (!$this->transactionNesting) {
+            return false;
+        }
+        --$this->transactionNesting;
+
+        // Rollback nested
+        if ($this->transactionNesting > 0) {
+            return $this->transactionRollback('NESTEDTRANSACTION' . $this->transactionNesting);
+        }
+
+        // Rollback top level
+        $this->query('ROLLBACK');
+        return true;
+    }
+
+    public function transactionDepth()
+    {
+        return $this->transactionNesting;
     }
 
     public function transactionEnd($chain = false)
