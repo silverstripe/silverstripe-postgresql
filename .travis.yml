@@ -33,7 +33,7 @@ before_script:
 
 # Install composer dependencies
   - composer validate
-  - composer require --no-update silverstripe/recipe-cms:^4.0.x-dev
+  - composer require --no-update silverstripe/recipe-cms:^4.0
   - composer install --prefer-dist --no-interaction --no-progress --no-suggest --optimize-autoloader --verbose --profile
   - if [[ $PHPCS_TEST ]]; then composer global require squizlabs/php_codesniffer:^3 --prefer-dist --no-interaction --no-progress --no-suggest -o; fi
 
