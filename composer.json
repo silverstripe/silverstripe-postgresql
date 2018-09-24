@@ -21,11 +21,7 @@
     "require-dev": {
         "phpunit/phpunit": "^5.7"
     },
-    "extra": {
-        "branch-alias": {
-            "2.x-dev": "2.1.x-dev"
-        }
-    },
+    "extra": [],
     "autoload": {
         "psr-4": {
             "SilverStripe\\PostgreSQL\\": "code/",
