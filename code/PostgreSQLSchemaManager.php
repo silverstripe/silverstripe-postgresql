@@ -4,6 +4,7 @@ namespace SilverStripe\PostgreSQL;
 
 use SilverStripe\Dev\Deprecation;
 use SilverStripe\ORM\Connect\DBSchemaManager;
+use SilverStripe\ORM\Connect\Query;
 use SilverStripe\ORM\DB;
 
 /**
@@ -1470,5 +1471,26 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     {
         user_error("PostGreSQL does not support multi-enum", E_USER_ERROR);
         return "int";
+    }
+
+    /**
+     * Update existing enum value that have been invalidated
+     * @param string $specValue Updated specification for the column.
+     * @param string $spec_orig Original specification for the column.
+     * @param string $fieldValue Current specification for the column.
+     * @param string $table Name of the table.
+     * @param string $field Name of the field.
+     * @return Query|null
+     */
+    protected function resetInvalidatedEnumValue($specValue, $spec_orig, $fieldValue, $table, $field)
+    {
+        $enumRegex = "/^varchar\(255\) default (.+?) check \(\"$field\" in \((.*?), null\)\)$/";
+
+        if (preg_match($enumRegex, $specValue, $matches)) {
+            $default = $matches[1];
+            $inValues = $matches[2];
+            $query = "UPDATE \"$table\" SET \"$field\"=$default WHERE NOT \"$field\" IN ($inValues) AND \"$field\" IS NOT NULL";
+            return $this->query($query);
+        }
     }
 }
