@@ -80,7 +80,11 @@ class PostgreSQLQuery extends Query
                 $record[$k] = $v;
                 $type = pg_field_type($this->handle, $i);
                 if (isset(self::$typeMapping[$type])) {
-                    settype($record[$k], self::$typeMapping[$type]);
+                    if ($type === 'bool' && $record[$k] === 't') {
+                        $record[$k] = 1;
+                    } else {
+                        settype($record[$k], self::$typeMapping[$type]);
+                    }
                 }
             }
 
