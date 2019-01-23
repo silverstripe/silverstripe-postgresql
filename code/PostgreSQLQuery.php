@@ -82,6 +82,8 @@ class PostgreSQLQuery extends Query
                 if (isset(self::$typeMapping[$type])) {
                     if ($type === 'bool' && $record[$k] === 't') {
                         $record[$k] = 1;
+
+                    // Note that boolean 'f' will be converted to 0 by this
                     } else {
                         settype($record[$k], self::$typeMapping[$type]);
                     }
