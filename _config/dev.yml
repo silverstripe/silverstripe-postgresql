@@ -1,0 +1,8 @@
+---
+Name: postgrestest
+---
+SilverStripe\Core\Injector\Injector:
+  SilverStripe\Dev\State\SapphireTestState:
+    properties:
+      States:
+        disablepostgresvacuum: '%$SilverStripe\PostgreSQL\Dev\State\DisableVacuumState'
