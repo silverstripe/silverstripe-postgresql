@@ -5,6 +5,8 @@ namespace SilverStripe\PostgreSQL\Dev\State;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\Dev\State\TestState;
+use SilverStripe\ORM\DB;
+use SilverStripe\PostgreSQL\PostgreSQLConnector;
 use SilverStripe\PostgreSQL\PostgreSQLSchemaManager;
 
 class DisableVacuumState implements TestState
@@ -36,7 +38,9 @@ class DisableVacuumState implements TestState
      */
     public function setUpOnce($class)
     {
-        Config::modify()->set(PostgreSQLSchemaManager::class, 'check_and_repair_on_build', false);
+        if (DB::get_conn()->getConnector() instanceof PostgreSQLConnector) {
+            Config::modify()->set(PostgreSQLSchemaManager::class, 'check_and_repair_on_build', false);
+        }
     }
 
     /**
