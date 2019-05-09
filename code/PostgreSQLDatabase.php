@@ -448,7 +448,7 @@ class PostgreSQLDatabase extends Database
 
             // Could parameterise this, but convention is only to to so for where conditions
             $query->addFrom(array(
-                'tsearch' => ", to_tsquery('" . self::search_language() . "', $keywords) AS q"
+                'q' => ", to_tsquery('" . self::search_language() . "', $keywords)"
             ));
             $query->setSelect(array());
 
