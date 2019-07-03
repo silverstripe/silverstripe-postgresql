@@ -58,8 +58,10 @@ class PostgreSQLQuery extends Query
 
     public function seek($row)
     {
-        pg_result_seek($this->handle, $row);
-        return $this->nextRecord();
+        // Specifying the zero-th record here will reset the pointer
+        $result = pg_fetch_array($this->handle, $row, PGSQL_NUM);
+
+        return $this->parseResult($result);
     }
 
     public function numRecords()
@@ -73,26 +75,35 @@ class PostgreSQLQuery extends Query
 
         // Correct non-string types
         if ($row) {
-            $record = [];
-
-            foreach ($row as $i => $v) {
-                $k = $this->columnNames[$i];
-                $record[$k] = $v;
-                $type = pg_field_type($this->handle, $i);
-                if (isset(self::$typeMapping[$type])) {
-                    if ($type === 'bool' && $record[$k] === 't') {
-                        $record[$k] = 1;
-
-                    // Note that boolean 'f' will be converted to 0 by this
-                    } else {
-                        settype($record[$k], self::$typeMapping[$type]);
-                    }
-                }
-            }
-
-            return $record;
+            return $this->parseResult($row);
         }
 
         return false;
+    }
+
+    /**
+     * @param array $row
+     * @return array
+     */
+    protected function parseResult(array $row)
+    {
+        $record = [];
+
+        foreach ($row as $i => $v) {
+            $k = $this->columnNames[$i];
+            $record[$k] = $v;
+            $type = pg_field_type($this->handle, $i);
+            if (isset(self::$typeMapping[$type])) {
+                if ($type === 'bool' && $record[$k] === 't') {
+                    $record[$k] = 1;
+
+                    // Note that boolean 'f' will be converted to 0 by this
+                } else {
+                    settype($record[$k], self::$typeMapping[$type]);
+                }
+            }
+        }
+
+        return $record;
     }
 }
