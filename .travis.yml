@@ -13,9 +13,6 @@ env:
 matrix:
   fast_finish: true
   include:
-    - php: 7.1
-      env:
-        - PHPUNIT_TEST=framework
     - php: 7.2
       env:
         - PHPUNIT_TEST=postgresql
