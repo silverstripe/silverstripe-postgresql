@@ -566,8 +566,17 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     public function renameTable($oldTableName, $newTableName)
     {
+        $constraints = $this->getConstraintForTable($oldTableName);
         $this->query("ALTER TABLE \"$oldTableName\" RENAME TO \"$newTableName\"");
+
+        if ($constraints) {
+            foreach ($constraints as $old) {
+                $new = preg_replace('/^' . $oldTableName . '/', $newTableName, $old);
+                $this->query("ALTER TABLE \"$newTableName\" RENAME CONSTRAINT \"$old\" TO \"$new\";");
+            }
+        }
         unset(self::$cached_fieldlists[$oldTableName]);
+        unset(self::$cached_constraints[$oldTableName]);
     }
 
     public function checkAndRepairTable($tableName)
@@ -965,6 +974,28 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
 
         return self::$cached_constraints[$constraint];
+    }
+
+    /**
+     * Retrieve a list of constraints for the provided table name.
+     * @param string $tableName
+     * @return array
+     */
+    private function getConstraintForTable($tableName)
+    {
+        // Note the PostgreSQL `like` operator is case sensitive
+        $constraints = $this->preparedQuery(
+            "
+            SELECT conname
+            FROM pg_catalog.pg_constraint r
+            INNER JOIN pg_catalog.pg_namespace n
+              ON r.connamespace = n.oid
+            WHERE r.contype = 'c' AND conname like ? AND n.nspname = ?
+            ORDER BY 1;",
+            array($tableName . '_%', $this->database->currentSchema())
+        )->column('conname');
+
+        return $constraints;
     }
 
     /**
