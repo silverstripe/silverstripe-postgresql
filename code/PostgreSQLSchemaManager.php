@@ -494,9 +494,15 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         // First, we split the column specifications into parts
         // TODO: this returns an empty array for the following string: int(11) not null auto_increment
         //         on second thoughts, why is an auto_increment field being passed through?
-
-        $pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
+        $pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\'\\\\]+)?\s?(check\s[\w()\'",\s\\\\]+)?$/i';
         preg_match($pattern, $colSpec, $matches);
+        // example value this regex is expected to parse:
+        // varchar(255) not null default 'SS\Test\Player' check ("ClassName" in ('SS\Test\Player', 'Player', null))
+        // split into:
+        // * varchar(255)
+        // * not null
+        // * default 'SS\Test\Player'
+        // * check ("ClassName" in ('SS\Test\Player', 'Player', null))
 
         if (sizeof($matches) == 0) {
             return '';
