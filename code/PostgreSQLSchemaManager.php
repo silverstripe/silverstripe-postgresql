@@ -543,8 +543,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 if ($this->hasTable("{$tableName}_Live")) {
                     $updateConstraint .= "UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 }
-                if ($this->hasTable("{$tableName}_versions")) {
-                    $updateConstraint .= "UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+                if ($this->hasTable("{$tableName}_Versions")) {
+                    $updateConstraint .= "UPDATE \"{$tableName}_Versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 }
 
                 $this->query($updateConstraint);
