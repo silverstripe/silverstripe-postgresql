@@ -10,20 +10,37 @@
 ## Requirements
 
 * SilverStripe 4.0
-* PostgreSQL 8.3.x or greater must be installed
-* PostgreSQL <8.3.0 may work if T-Search is manually installed
-*  Known to work on OS X Leopard, Windows Server 2008 R2 and Linux
+* PostgreSQL >=9.2
+* Note: PostgreSQL 10 has not been tested
 
 ## Installation
 
- 1. Install via composer `composer require silverstripe/postgresql` or extract the contents
-    so they reside as a `postgresql` directory inside your SilverStripe project code
- 2. Open the installer by browsing to install.php, e.g. http://localhost/silverstripe/install.php
- 3. Select PostgreSQL in the database list and enter your database details
+```
+composer require silverstripe/postgresql
+```
+
+## Configuration
+
+### Environment file
+
+Add the following settings to your `.env` file:
+
+```
+SS_DATABASE_CLASS=PostgreSQLDatabase
+SS_DATABASE_USERNAME=
+SS_DATABASE_PASSWORD=
+```
+
+See [environment variables](https://docs.silverstripe.org/en/4/getting_started/environment_management) for more details. Note that a database will automatically be created via `dev/build`.
+
+### Through the installer
+
+Open the installer by browsing to install.php, e.g. http://localhost/install.php
+Select PostgreSQL in the database list and enter your database details
 
 ## Usage Overview
 
-See docs/en for more information about configuring the module.
+See [docs/en](docs/en/README.md) for more information about configuring the module.
 	
 ## Known issues
 
