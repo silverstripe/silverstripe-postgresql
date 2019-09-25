@@ -27,7 +27,8 @@ class PostgreSQLSchemaManagerTest extends SapphireTest
             try {
                 DB::query('INSERT INTO "ClassNamesUpgrade" ("ClassName") VALUES (\'App\MySite\FooBar\')');
                 $this->assertFalse(true, 'SS3 Constaint should have blocked the previous insert.');
-            } catch (DatabaseException $ex) { }
+            } catch (DatabaseException $ex) {
+            }
 
             $dbSchema->schemaUpdate(function () use ($dbSchema) {
                 $dbSchema->requireTable(
@@ -48,7 +49,6 @@ class PostgreSQLSchemaManagerTest extends SapphireTest
             DB::query('DROP TABLE IF EXISTS "ClassNamesUpgrade"');
             DB::query('DROP SEQUENCE IF EXISTS "ClassNamesUpgrade_ID_seq"');
         }
-
     }
 
     private function createSS3Table()
@@ -91,16 +91,15 @@ SQL
             $this->assertTableCount(1, 'ClassNamesUpgrade_Versioned');
             $this->assertConstraintCount(0, 'ClassNamesUpgrade_versioned_ClassName_check');
             $this->assertConstraintCount(1, 'ClassNamesUpgrade_Versioned_ClassName_check');
-
         } finally {
             DB::query('DROP TABLE IF EXISTS "ClassNamesUpgrade_Versioned"');
             DB::query('DROP TABLE IF EXISTS "ClassNamesUpgrade_versioned"');
             DB::query('DROP SEQUENCE IF EXISTS "ClassNamesUpgrade_versioned_ID_seq"');
         }
-
     }
 
-    private function assertConstraintCount($expected, $constraintName) {
+    private function assertConstraintCount($expected, $constraintName)
+    {
         $count = DB::prepared_query(
             'SELECT count(*) FROM pg_catalog.pg_constraint WHERE conname like ?',
             [$constraintName]
@@ -109,7 +108,8 @@ SQL
         $this->assertEquals($expected, $count);
     }
 
-    private function assertTableCount($expected, $tableName) {
+    private function assertTableCount($expected, $tableName)
+    {
         $count = DB::prepared_query(
             'SELECT count(*) FROM pg_catalog.pg_tables WHERE "tablename" like ?',
             [$tableName]
