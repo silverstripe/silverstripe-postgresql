@@ -494,9 +494,15 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         // First, we split the column specifications into parts
         // TODO: this returns an empty array for the following string: int(11) not null auto_increment
         //         on second thoughts, why is an auto_increment field being passed through?
-
-        $pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\']+)?\s?(check\s[\w()\'",\s]+)?$/i';
+        $pattern = '/^([\w(\,)]+)\s?((?:not\s)?null)?\s?(default\s[\w\.\'\\\\]+)?\s?(check\s[\w()\'",\s\\\\]+)?$/i';
         preg_match($pattern, $colSpec, $matches);
+        // example value this regex is expected to parse:
+        // varchar(255) not null default 'SS\Test\Player' check ("ClassName" in ('SS\Test\Player', 'Player', null))
+        // split into:
+        // * varchar(255)
+        // * not null
+        // * default 'SS\Test\Player'
+        // * check ("ClassName" in ('SS\Test\Player', 'Player', null))
 
         if (sizeof($matches) == 0) {
             return '';
@@ -537,8 +543,8 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 if ($this->hasTable("{$tableName}_Live")) {
                     $updateConstraint .= "UPDATE \"{$tableName}_Live\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 }
-                if ($this->hasTable("{$tableName}_versions")) {
-                    $updateConstraint .= "UPDATE \"{$tableName}_versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
+                if ($this->hasTable("{$tableName}_Versions")) {
+                    $updateConstraint .= "UPDATE \"{$tableName}_Versions\" SET \"$colName\"='$default' WHERE \"$colName\" NOT IN ($constraint_values);";
                 }
 
                 $this->query($updateConstraint);
@@ -560,8 +566,17 @@ class PostgreSQLSchemaManager extends DBSchemaManager
 
     public function renameTable($oldTableName, $newTableName)
     {
+        $constraints = $this->getConstraintForTable($oldTableName);
         $this->query("ALTER TABLE \"$oldTableName\" RENAME TO \"$newTableName\"");
+
+        if ($constraints) {
+            foreach ($constraints as $old) {
+                $new = preg_replace('/^' . $oldTableName . '/', $newTableName, $old);
+                $this->query("ALTER TABLE \"$newTableName\" RENAME CONSTRAINT \"$old\" TO \"$new\";");
+            }
+        }
         unset(self::$cached_fieldlists[$oldTableName]);
+        unset(self::$cached_constraints[$oldTableName]);
     }
 
     public function checkAndRepairTable($tableName)
@@ -959,6 +974,28 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         }
 
         return self::$cached_constraints[$constraint];
+    }
+
+    /**
+     * Retrieve a list of constraints for the provided table name.
+     * @param string $tableName
+     * @return array
+     */
+    private function getConstraintForTable($tableName)
+    {
+        // Note the PostgreSQL `like` operator is case sensitive
+        $constraints = $this->preparedQuery(
+            "
+            SELECT conname
+            FROM pg_catalog.pg_constraint r
+            INNER JOIN pg_catalog.pg_namespace n
+              ON r.connamespace = n.oid
+            WHERE r.contype = 'c' AND conname like ? AND n.nspname = ?
+            ORDER BY 1;",
+            array($tableName . '_%', $this->database->currentSchema())
+        )->column('conname');
+
+        return $constraints;
     }
 
     /**
