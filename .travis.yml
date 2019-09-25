@@ -1,6 +1,10 @@
 language: php
 
-dist: trusty
+dist: xenial
+
+services:
+  - postgresql
+  -
 
 cache:
   directories:
@@ -17,6 +21,12 @@ matrix:
   fast_finish: true
   include:
     - php: 7.1
+      env:
+        - PHPUNIT_TEST=framework
+    - php: 7.2
+      env:
+        - PHPUNIT_TEST=framework
+    - php: 7.3
       env:
         - PHPUNIT_TEST=framework
     - php: 7.1
