@@ -74,26 +74,35 @@ class PostgreSQLQuery extends Query
 
         // Correct non-string types
         if ($row) {
-            $record = [];
-
-            foreach ($row as $i => $v) {
-                $k = $this->columnNames[$i];
-                $record[$k] = $v;
-                $type = pg_field_type($this->handle, $i);
-                if (isset(self::$typeMapping[$type])) {
-                    if ($type === 'bool' && $record[$k] === 't') {
-                        $record[$k] = 1;
-
-                    // Note that boolean 'f' will be converted to 0 by this
-                    } else {
-                        settype($record[$k], self::$typeMapping[$type]);
-                    }
-                }
-            }
-
-            return $record;
+            return $this->parseResult($row);
         }
 
         return false;
+    }
+
+    /**
+     * @param array $row
+     * @return array
+     */
+    protected function parseResult(array $row)
+    {
+        $record = [];
+
+        foreach ($row as $i => $v) {
+            $k = $this->columnNames[$i];
+            $record[$k] = $v;
+            $type = pg_field_type($this->handle, $i);
+            if (isset(self::$typeMapping[$type])) {
+                if ($type === 'bool' && $record[$k] === 't') {
+                    $record[$k] = 1;
+
+                    // Note that boolean 'f' will be converted to 0 by this
+                } else {
+                    settype($record[$k], self::$typeMapping[$type]);
+                }
+            }
+        }
+
+        return $record;
     }
 }
