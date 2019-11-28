@@ -42,7 +42,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
                     break;
                 case 'PostgrePDODatabase':
                     // May throw a PDOException if fails
-                    $conn = @new PDO('postgresql:host='.$server.';dbname=postgres;port=5432', $username, $password);
+                    $conn = @new PDO('pgsql:host='.$server.';dbname=postgres;port=5432', $username, $password);
                     break;
                 default:
                     $error = 'Invalid connection type: ' . $databaseConfig['type'];
