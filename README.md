@@ -3,10 +3,6 @@
 [![Build Status](https://travis-ci.org/silverstripe/silverstripe-postgresql.png?branch=master)](https://travis-ci.org/silverstripe/silverstripe-postgresql)
 [![SilverStripe supported module](https://img.shields.io/badge/silverstripe-supported-0071C4.svg)](https://www.silverstripe.org/software/addons/silverstripe-commercially-supported-module-list/)
 
-## Maintainer Contact
-
- * Sam Minnee (Nickname: sminnee) <sam@silverstripe.com>
-
 ## Requirements
 
 * SilverStripe 4.0
@@ -46,6 +42,12 @@ See [docs/en](docs/en/README.md) for more information about configuring the modu
 
 All column and table names must be double-quoted.  PostgreSQL automatically 
 lower-cases columns, and your queries will fail if you don't.
+
+Collations have known issues when installed on Alpine, MacOS X and BSD derivatives
+(see [PostgreSQL FAQ](https://wiki.postgresql.org/wiki/FAQ#Why_do_my_strings_sort_incorrectly.3F)).
+We do not support such installations, although they still may work correctly for you.
+As a workaround for PostgreSQL 10+ you could manually switch to ICU collations (e.g. und-x-icu).
+There are no known workarounds for PostgreSQL <10.
 
 Ts_vector columns are not automatically detected by the built-in search 
 filters.  That means if you're doing a search through the CMS on a ModelAdmin
