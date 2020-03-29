@@ -58,6 +58,7 @@ class PostgreSQLQuery extends Query
 
     public function getIterator()
     {
+        pg_result_seek($this->handle, 0);
         while ($data = $this->nextRecord()) {
             yield $data;
         }
