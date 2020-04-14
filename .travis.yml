@@ -4,7 +4,6 @@ dist: xenial
 
 services:
   - postgresql
-  -
 
 cache:
   directories:
@@ -21,6 +20,9 @@ matrix:
       env:
         - PHPUNIT_TEST=postgresql
         - PHPCS_TEST=1
+    - php: 7.3
+      env:
+        - PHPUNIT_TEST=framework
 
 before_script:
 # Init PHP
