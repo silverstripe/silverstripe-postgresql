@@ -23,15 +23,26 @@ matrix:
     - php: 7.1
       env:
         - PHPUNIT_TEST=framework
+# Test with lowest composer requirements (i.e. framework 4.0). Ensure that recipe version matches composer.json
+        - COMPOSER_ARG="--prefer-lowest"
+        - RECIPE_VERSION=^4.0.5
     - php: 7.2
       env:
         - PHPUNIT_TEST=framework
-    - php: 7.3
+        - RECIPE_VERSION=^4.6
+    - php: 7.4
       env:
         - PHPUNIT_TEST=framework
+        - RECIPE_VERSION=4.x-dev
+
+    - php: 7.4
+      env:
+        - PHPUNIT_TEST=postgresql
+        - PHPCS_TEST=1
     - php: 7.1
       env:
         - PHPUNIT_TEST=postgresql
+        - COMPOSER_ARG="--prefer-lowest"
         - PHPCS_TEST=1
 
 before_script:
@@ -43,8 +54,9 @@ before_script:
 
 # Install composer dependencies
   - composer validate
-  - composer require --no-update silverstripe/recipe-cms:4.3.x-dev
-  - composer install --prefer-source --no-interaction --no-progress --no-suggest --optimize-autoloader --verbose --profile
+# Recipe is needed to pull in versioned and other packages for running the framework tests
+  - if [[ $RECIPE_VERSION ]]; then composer require --no-update silverstripe/recipe-cms:$RECIPE_VERSION; fi
+  - composer update $COMPOSER_ARG --prefer-source --no-interaction --no-progress --no-suggest --optimize-autoloader --verbose --profile
   - if [[ $PHPCS_TEST ]]; then composer global require squizlabs/php_codesniffer:^3 --prefer-dist --no-interaction --no-progress --no-suggest -o; fi
 
 script:

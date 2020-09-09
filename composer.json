@@ -15,11 +15,15 @@
         }
     ],
     "require": {
-        "silverstripe/framework": "^4",
-        "silverstripe/vendor-plugin": "^1.0"
+        "silverstripe/framework": "^4.0.5",
+        "silverstripe/vendor-plugin": "^1.0",
+        "composer/installers": "^1.5"
     },
     "require-dev": {
-        "phpunit/phpunit": "^5.7"
+        "phpunit/phpunit": "^5.7.27",
+        "sminnee/phpunit-mock-objects": "^3.4.5",
+        "nikic/php-parser": "^3 || ^4",
+        "monolog/monolog": "~1.16"
     },
     "extra": {
         "branch-alias": {
