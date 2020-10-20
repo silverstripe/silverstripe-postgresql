@@ -4,7 +4,6 @@ dist: xenial
 
 services:
   - postgresql
-  -
 
 cache:
   directories:
@@ -23,12 +22,11 @@ matrix:
     - php: 7.1
       env:
         - PHPUNIT_TEST=framework
-    - php: 7.2
+        - RECIPE_CONSTRAINT=~4.3.0
+    - php: 7.4
       env:
         - PHPUNIT_TEST=framework
-    - php: 7.3
-      env:
-        - PHPUNIT_TEST=framework
+        - RECIPE_CONSTRAINT=4.x-dev
     - php: 7.1
       env:
         - PHPUNIT_TEST=postgresql
@@ -43,7 +41,7 @@ before_script:
 
 # Install composer dependencies
   - composer validate
-  - composer require --no-update silverstripe/recipe-cms:4.3.x-dev
+  - composer require --no-update silverstripe/recipe-cms:$RECIPE_CONSTRAINT
   - composer install --prefer-source --no-interaction --no-progress --no-suggest --optimize-autoloader --verbose --profile
   - if [[ $PHPCS_TEST ]]; then composer global require squizlabs/php_codesniffer:^3 --prefer-dist --no-interaction --no-progress --no-suggest -o; fi
 
