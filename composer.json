@@ -19,7 +19,8 @@
         "silverstripe/vendor-plugin": "^1.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^5.7"
+        "sminnee/phpunit": "^5.7.29",
+        "sminnee/phpunit-mock-objects": "^3.4.9"
     },
     "extra": { },
     "autoload": {
