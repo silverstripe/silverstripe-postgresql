@@ -19,11 +19,12 @@ matrix:
       env: DB=PGSQL CORE_RELEASE=3
     - php: 7.2
       env: DB=PGSQL CORE_RELEASE=3
-    - php: 7.3
-      env: DB=PGSQL CORE_RELEASE=3
+    - php: 7.4
+      env: DB=PGSQL CORE_RELEASE=3 INSTALL_PHPUNIT_FORK=1
 
 before_script:
  - composer self-update || true
+ - if [ $INSTALL_PHPUNIT_FORK ]; then composer require --no-update --dev sminnee/phpunit-mock-objects:^3.4.7; fi
  - phpenv rehash
  - git clone git://github.com/silverstripe-labs/silverstripe-travis-support.git ~/travis-support
  - php ~/travis-support/travis_setup.php --source `pwd` --target ~/builds/ss
