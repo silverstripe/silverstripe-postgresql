@@ -2,21 +2,21 @@
 
 /**
  * PostgreSQL schema manager
- * 
+ *
  * @package sapphire
  * @subpackage model
  */
 class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
-	 * Identifier for this schema, used for configuring schema-specific table 
+	 * Identifier for this schema, used for configuring schema-specific table
 	 * creation options
 	 */
 	const ID = 'PostgreSQL';
 
 	/**
 	 * Instance of the database controller this schema belongs to
-	 * 
+	 *
 	 * @var PostgreSQLDatabase
 	 */
 	protected $database = null;
@@ -46,7 +46,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Creates a postgres database, ignoring model_schema_as_database
-	 * 
+	 *
 	 * @param string $name
 	 */
 	public function createPostgresDatabase($name) {
@@ -63,13 +63,13 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Determines if a postgres database exists, ignoring model_schema_as_database
-	 * 
+	 *
 	 * @param string $name
 	 * @return boolean
 	 */
 	public function postgresDatabaseExists($name) {
 		$result = $this->preparedQuery("SELECT datname FROM pg_database WHERE datname = ?;", array($name));
-		return $result->first() ? true : false;  
+		return $result->first() ? true : false;
 	}
 
 	public function databaseExists($name) {
@@ -82,7 +82,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Determines the list of all postgres databases, ignoring model_schema_as_database
-	 * 
+	 *
 	 * @return array
 	 */
 	public function postgresDatabaseList() {
@@ -102,7 +102,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	}
 	/**
 	 * Drops a postgres database, ignoring model_schema_as_database
-	 * 
+	 *
 	 * @param string $name
 	 */
 	public  function dropPostgresDatabase($name) {
@@ -120,7 +120,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Returns true if the schema exists in the current database
-	 * 
+	 *
 	 * @param string $name
 	 * @return boolean
 	 */
@@ -133,7 +133,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Creates a schema in the current database
-	 * 
+	 *
 	 * @param string $name
 	 */
 	public function createSchema($name) {
@@ -143,7 +143,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Drops a schema from the database. Use carefully!
-	 * 
+	 *
 	 * @param string $name
 	 */
 	public function dropSchema($name) {
@@ -153,10 +153,10 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Returns the list of all available schemas on the current database
-	 * 
+	 *
 	 * @return array
 	 */
-	public function schemaList() { 
+	public function schemaList() {
 		return $this->query("
 			SELECT nspname
 			FROM pg_catalog.pg_namespace
@@ -239,9 +239,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Builds the internal Postgres index name given the silverstripe table and index name
-	 * 
+	 *
 	 * @param string $tableName
-	 * @param string $indexName 
+	 * @param string $indexName
 	 * @param string $prefix The optional prefix for the index. Defaults to "ix" for indexes.
 	 * @return string The postgres name of the index
 	 */
@@ -262,7 +262,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Builds the internal Postgres trigger name given the silverstripe table and trigger name
-	 * 
+	 *
 	 * @param string $tableName
 	 * @param string $triggerName
 	 * @return string The postgres name of the trigger
@@ -417,7 +417,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 			//Now we can run a long query to get the clustered status:
 			//If anyone knows a better way to get the clustered status, then feel free to replace this!
 			$clustered = $this->preparedQuery("
-				SELECT c2.relname, i.indisclustered 
+				SELECT c2.relname, i.indisclustered
 				FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
 				WHERE c.oid = ? AND c.oid = i.indrelid AND i.indexrelid = c2.oid AND indisclustered='t';",
 				array($oid)
@@ -518,7 +518,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Change the database type of the given field.
-	 * 
+	 *
 	 * @param string $tableName The name of the tbale the field is in.
 	 * @param string $fieldName The name of the field to change.
 	 * @param string $fieldSpec The new field specification
@@ -644,7 +644,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * Create an index on a table.
-	 * 
+	 *
 	 * @param string $tableName The name of the table.
 	 * @param string $indexName The name of the index.
 	 * @param string $indexSpec The specification of the index, see Database::requireIndex() for more details.
@@ -716,7 +716,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 		//create a type-specific index
 		// NOTE:  hash should be removed.  This is only here to demonstrate how other indexes can be made
-		// NOTE: Quote the index name to preserve case sensitivity 
+		// NOTE: Quote the index name to preserve case sensitivity
 		switch ($indexSpec['type']) {
 			case 'fulltext':
 				// @see fulltext() for the definition of the trigger that ts_$IndexName uses for fulltext searching
@@ -788,6 +788,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 					$argList[] = $nextArg;
 					$nextArg = "";
 				} else {
+					var_dump($byte);
 					$nextArg .= chr(hexdec($byte));
 				}
 			}
@@ -810,7 +811,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 		foreach($indexes as $index) {
 			// Key for the indexList array.  Differs from other DB implementations, which is why
 			// requireIndex() needed to be overridden
-			$indexName = $index['indexname']; 
+			$indexName = $index['indexname'];
 
 			//We don't actually need the entire created command, just a few bits:
 			$type = '';
@@ -890,7 +891,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 	/**
 	 * A function to return the field names and datatypes for the particular table
-	 * 
+	 *
 	 * @param string $tableName
 	 * @return array List of columns an an associative array with the keys Column and DataType
 	 */
@@ -983,7 +984,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 		if($asDbValue) {
 			return array('data_type'=>'smallint');
-		} 
+		}
 
 		if($values['arrayValue'] != '') {
 			$default = '';
@@ -1108,7 +1109,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 		if($asDbValue) {
 			return Array('data_type'=>'integer', 'precision'=>'32');
-		} 
+		}
 
 		if($values['arrayValue']!='') {
 			$default='';
@@ -1134,7 +1135,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 
 		if($asDbValue) {
 			return Array('data_type'=>'bigint', 'precision'=>'64');
-		} 
+		}
 
 		if($values['arrayValue']!='') {
 			$default='';
@@ -1227,7 +1228,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	/*
 	 * Return a 4 digit numeric type.  MySQL has a proprietary 'Year' type.
 	 * For Postgres, we'll use a 4 digit numeric
-	 * 
+	 *
 	 * @param array $values Contains a tokenised list of info about this data type
 	 * @param boolean $asDbValue
 	 * @return string
@@ -1340,7 +1341,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	/*
 	 * Given a tablespace and and location, either create a new one
 	 * or update the existing one
-	 * 
+	 *
 	 * @param string $name
 	 * @param string $location
 	 */
@@ -1364,7 +1365,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param string $tableName
 	 * @param array $partitions
 	 * @param array $indexes
@@ -1459,7 +1460,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager {
 	/*
 	 * This will create a language if it doesn't already exist.
 	 * This is used by the createOrReplacePartition function, which needs plpgsql
-	 * 
+	 *
 	 * @param string $language Language name
 	 */
 	public function createLanguage($language){
