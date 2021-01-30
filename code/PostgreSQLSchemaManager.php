@@ -1246,6 +1246,17 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     {
         return "decimal(4,0)";
     }
+    
+     /*
+     * Return a JSON Binary field type (better for searching than a plain JSON type)
+     *
+     * @param array $values Contains a tokenised list of info about this data type
+     * @return string
+     */
+    public function json($values)
+    {
+        return "jsonb";
+    }
 
     /**
      * Create a fulltext search datatype for PostgreSQL
