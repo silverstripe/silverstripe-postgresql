@@ -858,7 +858,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $argList = array();
             $nextArg = "";
             foreach ($bytes as $byte) {
-                if ($byte == "00") {
+                if ($byte == '\x') {
+                    continue;
+                } elseif ($byte == "00") {
                     $argList[] = $nextArg;
                     $nextArg = "";
                 } else {
