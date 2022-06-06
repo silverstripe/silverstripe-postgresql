@@ -11,30 +11,28 @@ env:
 jobs:
   fast_finish: true
   include:
-    - php: 7.1
-      env:
-        - REQUIRE_INSTALLER="4.5.x-dev"
-        - PHPCS_TEST=1
-        - PHPUNIT_TEST=1
-        - PHPUNIT_SUITE="framework"
-    - php: 7.2
-      env:
-        - REQUIRE_INSTALLER="4.6.x-dev"
-        - PHPUNIT_COVERAGE_TEST=1
-        - PHPUNIT_SUITE="postgresql"
     - php: 7.3
       env:
-        - REQUIRE_INSTALLER="4.7.x-dev"
-        - PHPUNIT_TEST=1
+        - REQUIRE_INSTALLER="4.10.x-dev"
+        - PHPUNIT_COVERAGE_TEST=1
         - PHPUNIT_SUITE="framework"
+    - php: 7.4
+      env:
+        - REQUIRE_INSTALLER="4.11.x-dev"
+        - PHPUNIT_TEST=1
+        - PHPUNIT_SUITE="postgresql"
     - php: 7.4
       env:
         - REQUIRE_INSTALLER="4.x-dev"
         - PHPUNIT_TEST=1
-        - PHPUNIT_SUITE="postgresql"
+        - PHPUNIT_SUITE="framework"
     - php: 8.0
       env:
         - REQUIRE_INSTALLER="4.x-dev"
         - PHPUNIT_TEST=1
+        - PHPUNIT_SUITE="postgresql"
+    - php: 8.1
+      env:
+        - REQUIRE_INSTALLER="4.x-dev"
+        - PHPUNIT_TEST=1
         - PHPUNIT_SUITE="framework"
-        - COMPOSER_INSTALL_ARG=--ignore-platform-reqs
