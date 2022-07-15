@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  # Every Thursday at 12:20pm UTC
+  schedule:
+    - cron: '20 12 * * 4'
+
+jobs:
+  ci:
+    name: CI
+    # Only run cron on the silverstripe account
+    if: (github.event_name == 'schedule' && startsWith(github.repository, 'silverstripe/')) || (github.event_name != 'schedule')
+    uses: silverstripe/gha-ci/.github/workflows/ci.yml@v1
+    with:
+      # set phpunit to false to prevent automatic generation of mysql phpunit jobs
+      phpunit: false
+      extra_jobs: |
+        - php: 7.4
+          db: pgsql
+          phpunit: true
+          composer_args: --prefer-lowest
+        - php: 8.0
+          db: pgsql
+          phpunit: true
+        - php: 8.1
+          db: pgsql
+          phpunit: true

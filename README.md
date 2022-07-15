@@ -1,6 +1,6 @@
 # PostgreSQL Module Module
 
-[![Build Status](https://travis-ci.org/silverstripe/silverstripe-postgresql.png?branch=master)](https://travis-ci.org/silverstripe/silverstripe-postgresql)
+[![CI](https://github.com/silverstripe/silverstripe-postgresql/actions/workflows/ci.yml/badge.svg)](https://github.com/silverstripe/silverstripe-postgresql/actions/workflows/ci.yml)
 [![SilverStripe supported module](https://img.shields.io/badge/silverstripe-supported-0071C4.svg)](https://www.silverstripe.org/software/addons/silverstripe-commercially-supported-module-list/)
 
 ## Maintainer Contact
