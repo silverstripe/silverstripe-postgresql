@@ -1,7 +1,7 @@
 # PostgreSQL Module Module
 
 [![CI](https://github.com/silverstripe/silverstripe-postgresql/actions/workflows/ci.yml/badge.svg)](https://github.com/silverstripe/silverstripe-postgresql/actions/workflows/ci.yml)
-[![SilverStripe supported module](https://img.shields.io/badge/silverstripe-supported-0071C4.svg)](https://www.silverstripe.org/software/addons/silverstripe-commercially-supported-module-list/)
+[![Silverstripe supported module](https://img.shields.io/badge/silverstripe-supported-0071C4.svg)](https://www.silverstripe.org/software/addons/silverstripe-commercially-supported-module-list/)
 
 ## Maintainer Contact
 
@@ -9,7 +9,7 @@
 
 ## Requirements
 
-* SilverStripe 4.0
+* Silverstripe 4.0
 * PostgreSQL >=9.2
 * Note: PostgreSQL 10 has not been tested
 
