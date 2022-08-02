@@ -1,6 +1,6 @@
 # PostgreSQL Module Module
 
-[![Build Status](https://travis-ci.org/silverstripe/silverstripe-postgresql.png?branch=master)](https://travis-ci.org/silverstripe/silverstripe-postgresql)
+[![Silverstripe supported module](https://img.shields.io/badge/silverstripe-supported-0071C4.svg)](https://www.silverstripe.org/software/addons/silverstripe-commercially-supported-module-list/)
 
 ## Maintainer Contact
 
@@ -8,7 +8,7 @@
 
 ## Requirements
 
-* SilverStripe 3.0
+* Silverstripe 3.0
 * PostgreSQL 8.3.x or greater must be installed
 * PostgreSQL <8.3.0 may work if T-Search is manually installed
 *  Known to work on OS X Leopard, Windows Server 2008 R2 and Linux
@@ -16,7 +16,7 @@
 ## Installation
 
  1. Install via composer `composer require silverstripe/postgresql 1.2.*-dev` or extract the contents
-    so they reside as a `postgresql` directory inside your SilverStripe project code
+    so they reside as a `postgresql` directory inside your Silverstripe project code
  2. Open the installer by browsing to install.php, e.g. http://localhost/silverstripe/install.php
  3. Select PostgreSQL in the database list and enter your database details
 
