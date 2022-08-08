@@ -10,7 +10,7 @@
     "license": "BSD-3-Clause",
     "authors": [
         {
-            "name": "Sam Minnée",
+            "name": "Sam Minn\u00e9e",
             "email": "sam@silverstripe.com"
         }
     ],
@@ -22,11 +22,7 @@
     "require-dev": {
         "phpunit/phpunit": "7.1.3"
     },
-    "extra": {
-        "branch-alias": {
-            "dev-master": "3.x-dev"
-        }
-    },
+    "extra": {},
     "autoload": {
         "psr-4": {
             "SilverStripe\\PostgreSQL\\": "code/",
