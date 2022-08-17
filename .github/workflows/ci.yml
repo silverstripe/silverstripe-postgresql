@@ -18,11 +18,11 @@ jobs:
       # set phpunit to false to prevent automatic generation of mysql phpunit jobs
       phpunit: false
       extra_jobs: |
-        - php: 7.4
+        - php: 8.1
           db: pgsql
           phpunit: true
           composer_args: --prefer-lowest
-        - php: 8.0
+        - php: 8.1
           db: pgsql
           phpunit: true
         - php: 8.1
