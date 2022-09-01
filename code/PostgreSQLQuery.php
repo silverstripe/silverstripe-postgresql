@@ -2,7 +2,6 @@
 
 namespace SilverStripe\PostgreSQL;
 
-use Iterator;
 use SilverStripe\ORM\Connect\Query;
 
 /**
@@ -57,16 +56,29 @@ class PostgreSQLQuery extends Query
         }
     }
 
-    public function getIterator(): Iterator
+    public function seek($row)
     {
-        while ($row = pg_fetch_array($this->handle, null, PGSQL_NUM)) {
-            yield $this->parseResult($row);
-        }
+        // Specifying the zero-th record here will reset the pointer
+        $result = pg_fetch_array($this->handle, $row, PGSQL_NUM);
+
+        return $this->parseResult($result);
     }
 
     public function numRecords()
     {
         return pg_num_rows($this->handle);
+    }
+
+    public function nextRecord()
+    {
+        $row = pg_fetch_array($this->handle, null, PGSQL_NUM);
+
+        // Correct non-string types
+        if ($row) {
+            return $this->parseResult($row);
+        }
+
+        return false;
     }
 
     /**
