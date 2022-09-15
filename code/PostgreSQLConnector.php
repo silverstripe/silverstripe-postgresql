@@ -4,6 +4,8 @@ namespace SilverStripe\PostgreSQL;
 
 use SilverStripe\ORM\Connect\DBConnector;
 use ErrorException;
+use PgSql\Connection;
+use PgSql\Result;
 
 /**
  * PostgreSQL connector class using the PostgreSQL specific api
@@ -20,7 +22,7 @@ class PostgreSQLConnector extends DBConnector
     /**
      * Connection to the PG Database database
      *
-     * @var resource
+     * @var Connection
      */
     protected $dbConn = null;
 
@@ -34,7 +36,7 @@ class PostgreSQLConnector extends DBConnector
     /**
      * Reference to the last query result (for pg_affected_rows)
      *
-     * @var resource
+     * @var Result
      */
     protected $lastQuery = null;
 

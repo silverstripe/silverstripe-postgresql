@@ -6,6 +6,7 @@ use SilverStripe\Dev\Install\DatabaseAdapterRegistry;
 use SilverStripe\Dev\Install\DatabaseConfigurationHelper;
 use Exception;
 use PDO;
+use PgSql\Connection;
 
 /**
  * This is a helper class for the SS installer.
@@ -94,7 +95,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
             return false;
         } elseif ($conn instanceof PDO) {
             return $conn->getAttribute(PDO::ATTR_SERVER_VERSION);
-        } elseif (is_resource($conn)) {
+        } elseif ($conn instanceof Connection) {
             $info = pg_version($conn);
             return $info['server'];
         } else {
@@ -132,7 +133,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
     /**
      * Helper function to execute a query
      *
-     * @param mixed $conn Connection object/resource
+     * @param mixed $conn Connection object
      * @param string $sql SQL string to execute
      * @return array List of first value from each resulting row
      */
@@ -143,7 +144,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
             foreach ($conn->query($sql) as $row) {
                 $items[] = $row[0];
             }
-        } elseif (is_resource($conn)) {
+        } elseif ($conn instanceof Connection) {
             $result =  pg_query($conn, $sql);
             while ($row = pg_fetch_row($result)) {
                 $items[] = $row[0];

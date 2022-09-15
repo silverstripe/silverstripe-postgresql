@@ -3,6 +3,7 @@
 namespace SilverStripe\PostgreSQL;
 
 use Iterator;
+use PgSql\Result;
 use SilverStripe\ORM\Connect\Query;
 
 /**
@@ -15,7 +16,7 @@ class PostgreSQLQuery extends Query
 {
     /**
      * The internal Postgres handle that points to the result set.
-     * @var resource
+     * @var Result
      */
     private $handle;
 
@@ -38,7 +39,7 @@ class PostgreSQLQuery extends Query
 
     /**
      * Hook the result-set given into a Query class, suitable for use by sapphire.
-     * @param resource $handle the internal Postgres handle that is points to the resultset.
+     * @param Result $handle the internal Postgres handle that is points to the resultset.
      */
     public function __construct($handle)
     {
@@ -52,9 +53,7 @@ class PostgreSQLQuery extends Query
 
     public function __destruct()
     {
-        if (is_resource($this->handle)) {
-            pg_free_result($this->handle);
-        }
+        pg_free_result($this->handle);
     }
 
     public function getIterator(): Iterator
