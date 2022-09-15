@@ -62,6 +62,8 @@ class PostgreSQLQuery extends Query
         while ($row = pg_fetch_array($this->handle, null, PGSQL_NUM)) {
             yield $this->parseResult($row);
         }
+        // Reset so the query can be iterated over again
+        pg_result_seek($this->handle, 0);
     }
 
     public function numRecords()
