@@ -79,7 +79,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     public function postgresDatabaseExists($name)
     {
         $result = $this->preparedQuery("SELECT datname FROM pg_database WHERE datname = ?;", array($name));
-        return $result->first() ? true : false;
+        return $result->value() ? true : false;
     }
 
     public function databaseExists($name)
@@ -146,7 +146,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         return $this->preparedQuery(
             "SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname = ?;",
             array($name)
-        )->first() ? true : false;
+        )->value() ? true : false;
     }
 
     /**
@@ -462,18 +462,18 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $stats = $this->preparedQuery(
                 "SELECT relid FROM pg_stat_user_tables WHERE relname = ?;",
                 array($table)
-            )->first();
+            )->record();
             $oid = $stats['relid'];
 
             //Now we can run a long query to get the clustered status:
             //If anyone knows a better way to get the clustered status, then feel free to replace this!
             $clustered = $this->preparedQuery(
                 "
-                SELECT c2.relname, i.indisclustered 
+                SELECT c2.relname, i.indisclustered
                 FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
                 WHERE c.oid = ? AND c.oid = i.indrelid AND i.indexrelid = c2.oid AND indisclustered='t';",
                 array($oid)
-            )->first();
+            )->value();
 
             if ($clustered) {
                 $this->query("ALTER TABLE \"$table\" SET WITHOUT CLUSTER;");
@@ -830,9 +830,9 @@ class PostgreSQLSchemaManager extends DBSchemaManager
     protected function extractTriggerColumns($triggerName, $table)
     {
         $trigger = $this->preparedQuery(
-            "SELECT t.tgargs 
+            "SELECT t.tgargs
             FROM pg_catalog.pg_trigger t
-            INNER JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid 
+            INNER JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
             INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relname = ?
                 AND n.nspname = ?
@@ -842,7 +842,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 $this->database->currentSchema(),
                 $triggerName
             ]
-        )->first();
+        )->record();
 
         // Convert stream to string
         if (is_resource($trigger['tgargs'])) {
@@ -968,7 +968,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
                 WHERE r.contype = 'c' AND conname = ? AND n.nspname = ?
                 ORDER BY 1;",
                 array($constraint, $this->database->currentSchema())
-            )->first();
+            )->record();
             if (!$cache) {
                 return $value;
             }
@@ -1048,7 +1048,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             FROM information_schema.triggers
             WHERE trigger_name = ? AND trigger_schema = ?;",
             array($triggerName, $this->database->currentSchema())
-        )->first();
+        )->value();
         if ($exists) {
             $this->query("DROP trigger IF EXISTS $triggerName ON \"$tableName\";");
         }
@@ -1364,7 +1364,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         $existing = $this->preparedQuery(
             "SELECT spcname, spclocation FROM pg_tablespace WHERE spcname = ?;",
             array($name)
-        )->first();
+        )->record();
 
         //NOTE: this location must be empty for this to work
         //We can't seem to change the location of the tablespace through any ALTER commands :(
@@ -1489,7 +1489,7 @@ class PostgreSQLSchemaManager extends DBSchemaManager
         $result = $this->preparedQuery(
             "SELECT lanname FROM pg_language WHERE lanname = ?;",
             array($language)
-        )->first();
+        )->value();
 
         if (!$result) {
             $this->query("CREATE LANGUAGE $language;");

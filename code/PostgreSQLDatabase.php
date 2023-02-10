@@ -574,13 +574,14 @@ class PostgreSQLDatabase extends Database
         return $this->transactionNesting;
     }
 
-    public function transactionEnd($chain = false)
+    public function transactionEnd($chain = false): ?bool
     {
         --$this->transactionNesting;
         if ($this->transactionNesting <= 0) {
             $this->transactionNesting = 0;
             $this->query('COMMIT;');
         }
+        return null;
     }
 
     public function comparisonClause($field, $value, $exact = false, $negate = false, $caseSensitive = null, $parameterised = false)
