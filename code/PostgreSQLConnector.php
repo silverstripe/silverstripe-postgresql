@@ -11,9 +11,6 @@ use ErrorException;
  * The connector doesn't know anything about schema selection, so code related to
  * masking multiple databases as schemas should be handled in the database controller
  * and schema manager.
- *
- * @package sapphire
- * @subpackage model
  */
 class PostgreSQLConnector extends DBConnector
 {
@@ -116,8 +113,7 @@ class PostgreSQLConnector extends DBConnector
 
     public function getGeneratedID($table)
     {
-        $result = $this->query("SELECT currval('\"{$table}_ID_seq\"')")->first();
-        return $result['currval'];
+        return $this->query("SELECT currval('\"{$table}_ID_seq\"')")->value();
     }
 
     public function getLastError()
