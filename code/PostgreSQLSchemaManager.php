@@ -849,23 +849,18 @@ class PostgreSQLSchemaManager extends DBSchemaManager
             $trigger['tgargs'] = stream_get_contents($trigger['tgargs']);
         }
 
-        if (strpos($trigger['tgargs'], "\000") !== false) {
-            // Option 1: output as a string (PDO)
-            $argList = array_filter(explode("\000", $trigger['tgargs']));
-        } else {
-            // Option 2: hex-encoded (pg_sql non-pdo)
-            $bytes = str_split($trigger['tgargs'], 2);
-            $argList = array();
-            $nextArg = "";
-            foreach ($bytes as $byte) {
-                if ($byte == '\x') {
-                    continue;
-                } elseif ($byte == "00") {
-                    $argList[] = $nextArg;
-                    $nextArg = "";
-                } else {
-                    $nextArg .= chr(hexdec($byte));
-                }
+        // hex-encoded (pg_sql non-pdo)
+        $bytes = str_split($trigger['tgargs'], 2);
+        $argList = array();
+        $nextArg = "";
+        foreach ($bytes as $byte) {
+            if ($byte == '\x') {
+                continue;
+            } elseif ($byte == "00") {
+                $argList[] = $nextArg;
+                $nextArg = "";
+            } else {
+                $nextArg .= chr(hexdec($byte));
             }
         }
 

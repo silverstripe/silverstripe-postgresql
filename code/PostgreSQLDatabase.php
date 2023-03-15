@@ -214,7 +214,7 @@ class PostgreSQLDatabase extends Database
         }
         $this->schemaOriginal = $parameters['schema'];
 
-        // Ensure that driver is available (required by PDO)
+        // Ensure that driver is available
         if (empty($parameters['driver'])) {
             $parameters['driver'] = $this->getDatabaseServer();
         }

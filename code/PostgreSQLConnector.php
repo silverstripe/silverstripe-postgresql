@@ -72,7 +72,7 @@ class PostgreSQLConnector extends DBConnector
 
         // Note: Postgres always behaves as though $selectDB = true, ignoring
         // any value actually passed in. The controller passes in true for other
-        // connectors such as PDOConnector.
+        // connectors
 
         // Escape parameters
         $arguments = array(
@@ -218,7 +218,6 @@ class PostgreSQLConnector extends DBConnector
 
         // Execute query
         // Unfortunately error-suppression is required in order to handle sql errors elegantly.
-        // Please use PDO if you can help it
         if (!empty($parameters)) {
             $result = @pg_query_params($this->dbConn, $sql, $parameters);
         } else {

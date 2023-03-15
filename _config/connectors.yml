@@ -2,12 +2,6 @@
 name: postgresqlconnectors
 ---
 SilverStripe\Core\Injector\Injector:
-  PostgrePDODatabase:
-    class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
-    properties:
-      connector: '%$PDOConnector'
-      schemaManager: '%$PostgreSQLSchemaManager'
-      queryBuilder: '%$PostgreSQLQueryBuilder'
   PostgreSQLDatabase:
     class: 'SilverStripe\PostgreSQL\PostgreSQLDatabase'
     properties:
