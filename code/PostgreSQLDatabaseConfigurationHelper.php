@@ -5,7 +5,6 @@ namespace SilverStripe\PostgreSQL;
 use SilverStripe\Dev\Install\DatabaseAdapterRegistry;
 use SilverStripe\Dev\Install\DatabaseConfigurationHelper;
 use Exception;
-use PDO;
 
 /**
  * This is a helper class for the SS installer.
@@ -39,10 +38,6 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
                     $passwordPart = $password ? " password=$password" : '';
                     $connstring = "host=$server port=5432 dbname=postgres{$userPart}{$passwordPart}";
                     $conn = pg_connect($connstring);
-                    break;
-                case 'PostgrePDODatabase':
-                    // May throw a PDOException if fails
-                    $conn = @new PDO('postgresql:host='.$server.';dbname=postgres;port=5432', $username, $password);
                     break;
                 default:
                     $error = 'Invalid connection type: ' . $databaseConfig['type'];
@@ -92,8 +87,6 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
         $conn = $this->createConnection($databaseConfig, $error);
         if (!$conn) {
             return false;
-        } elseif ($conn instanceof PDO) {
-            return $conn->getAttribute(PDO::ATTR_SERVER_VERSION);
         } elseif (is_resource($conn)) {
             $info = pg_version($conn);
             return $info['server'];
@@ -139,11 +132,7 @@ class PostgreSQLDatabaseConfigurationHelper implements DatabaseConfigurationHelp
     protected function query($conn, $sql)
     {
         $items = array();
-        if ($conn instanceof PDO) {
-            foreach ($conn->query($sql) as $row) {
-                $items[] = $row[0];
-            }
-        } elseif (is_resource($conn)) {
+        if (is_resource($conn)) {
             $result =  pg_query($conn, $sql);
             while ($row = pg_fetch_row($result)) {
                 $items[] = $row[0];
