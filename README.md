@@ -3,15 +3,9 @@
 [![CI](https://github.com/silverstripe/silverstripe-postgresql/actions/workflows/ci.yml/badge.svg)](https://github.com/silverstripe/silverstripe-postgresql/actions/workflows/ci.yml)
 [![Silverstripe supported module](https://img.shields.io/badge/silverstripe-supported-0071C4.svg)](https://www.silverstripe.org/software/addons/silverstripe-commercially-supported-module-list/)
 
-## Requirements
-
-* Silverstripe 4.0
-* PostgreSQL >=9.2
-* Note: PostgreSQL 10 has not been tested
-
 ## Installation
 
-```
+```sh
 composer require silverstripe/postgresql
 ```
 
@@ -27,7 +21,7 @@ SS_DATABASE_USERNAME=
 SS_DATABASE_PASSWORD=
 ```
 
-See [environment variables](https://docs.silverstripe.org/en/4/getting_started/environment_management) for more details. Note that a database will automatically be created via `dev/build`.
+See [environment variables](https://docs.silverstripe.org/en/getting_started/environment_management) for more details. Note that a database will automatically be created via `dev/build`.
 
 ### Through the installer
 
